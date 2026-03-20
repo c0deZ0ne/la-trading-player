@@ -3,10 +3,11 @@
 set -e
 SCRIPTDIR=$(dirname "$0")
 
-export QT_BASE_PATH="NEED TO CUSTOMIZED"						# path to your qt base directory
-export QT_VERSION=5.12.6										# The Qt Version 5.7, 5.8, 5.9.2 etc
-export CONFIG_DEBUG_RELEASE=release    							# set if debug or release
-export DEV_JOBS=$(grep -c "^processor" /proc/cpuinfo)			# determine how many cores can be used
+export QT_BASE_PATH="C:/Qt"						# path to your qt base directory
+export QT_VERSION=5.15.2										# The Qt Version 5.7, 5.8, 5.9.2 etc
+export CONFIG_DEBUG_RELEASE=debug
+export DEV_JOBS=4			# determine how many cores can be used
+export ANDROID_API_VERSION=android-31
 
 if [ -z "QT_BASE_PATH" ]; then
 	echo Error: Set the correct paths in QT_BASE_PATH 
@@ -20,7 +21,7 @@ export SHADOW_BUILD_DIR=build-$QT_VERSION-$CONFIG_DEBUG_RELEASE
 
 # check if called from jenkins to set correct paths
 if [ -z "$BUILD_NUMBER" ]; then
-	export GARLIC_DIR=/home/niko/github/garlic-player/
+	export GARLIC_DIR="c:/Users/Training/Desktop/garlic-player/"
 	source $SCRIPTDIR/writeVersionFromGithub.sh 
 else
 	export GARLIC_DIR=$PWD

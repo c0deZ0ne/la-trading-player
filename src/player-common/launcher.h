@@ -3,7 +3,7 @@
 
 #include <QObject>
 #if defined  Q_OS_ANDROID
-#include <QtAndroidExtras>
+#include <QAndroidJniObject>
 #elif defined Q_OS_LINUX
     #include <QProcess>
 #endif

@@ -15,7 +15,7 @@
 #endif
 
 extern "C" {
-#include <libavutil/frame.h>
+// #include <libavutil/frame.h>
 }
 
 QT_BEGIN_NAMESPACE
