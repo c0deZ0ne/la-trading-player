@@ -2,7 +2,7 @@ include(../defaults.pri)
 
 QT          += core sql widgets gui xml xmlpatterns quick qml quickcontrols2
 CONFIG      += warn_on c++11
-TARGET       = garlic-player
+TARGET       = la-player
 TEMPLATE     = app
 DESTDIR      = ../bin
 INCLUDEPATH +=../ext/zlib/includes

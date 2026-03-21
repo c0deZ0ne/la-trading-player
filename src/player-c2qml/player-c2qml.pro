@@ -2,7 +2,7 @@ include(../defaults.pri)
 
 QT          += core sql network positioning widgets gui xml xmlpatterns quick qml quickcontrols2 multimedia multimediawidgets
 CONFIG      += warn_on c++11
-TARGET       = garlic-player
+TARGET       = la-player
 TEMPLATE     = app
 DESTDIR      = ../bin
 INCLUDEPATH +=../ext/zlib/includes
@@ -29,7 +29,7 @@ ios {
 
   #  QMAKE_INFO_PLIST = path/to/your/Info.plist
   #  QMAKE_TARGET_BUNDLE_PREFIX = com.smilcontrol
-   QMAKE_BUNDLE = garlic-player
+   QMAKE_BUNDLE = la-player
     QMAKE_IOS_DEPLOYMENT_TARGET = 12.0
   #  QMAKE_APPLE_TARGETED_DEVICE_FAMILY = 1,2
 }

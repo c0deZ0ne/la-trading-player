@@ -100,5 +100,5 @@ cd ./player-c2qml/$BUILD_TARGET
 ./gradlew assemble${CONFIG_DEBUG_RELEASE^}
 cd ../..
 
-mv ./player-c2qml/$BUILD_TARGET/build/outputs/apk/$CONFIG_DEBUG_RELEASE/*.apk garlic-player-$ANDROID_ARCH-$DEPLOY_SUFFIX-$CONFIG_DEBUG_RELEASE.apk
+mv ./player-c2qml/$BUILD_TARGET/build/outputs/apk/$CONFIG_DEBUG_RELEASE/*.apk la-player-$ANDROID_ARCH-$DEPLOY_SUFFIX-$CONFIG_DEBUG_RELEASE.apk
 
