@@ -31,6 +31,9 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.util.Log;
 import java.util.concurrent.ExecutionException;
 
 
@@ -49,6 +52,29 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                Log.e("GarlicActivity", "Uncaught exception: ", throwable);
+                
+                Intent intent = new Intent(m_instance, GarlicActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                
+                PendingIntent pendingIntent = PendingIntent.getActivity(
+                    m_instance.getBaseContext(), 
+                    0, 
+                    intent, 
+                    PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+                );
+                
+                AlarmManager mgr = (AlarmManager) m_instance.getBaseContext().getSystemService(Context.ALARM_SERVICE);
+                mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 2000, pendingIntent);
+                
+                System.exit(2);
+            }
+        });
+
         if (isGarlicLauncherInstalled())
         {
             is_launcher = true;

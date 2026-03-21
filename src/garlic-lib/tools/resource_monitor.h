@@ -23,6 +23,8 @@
 #include "system_infos/memory.h"
 #include "system_infos/general.h"
 #include "system_infos/disc_space.hpp"
+#include <QGeoPositionInfoSource>
+#include <QGeoPositionInfo>
 
 class ResourceMonitor : public QObject
 {
@@ -38,9 +40,14 @@ class ResourceMonitor : public QObject
         Q_INVOKABLE QString getMaxMemoryAppUsed() const;
         Q_INVOKABLE QString getThreadsNumber() const;
         Q_INVOKABLE QString getMaxThreadsNumber() const;
+        Q_INVOKABLE QString getLatitude() const;
+        Q_INVOKABLE QString getLongitude() const;
 
         void setDiscSpace(SystemInfos::DiscSpace *ds);
-protected:
+    private slots:
+        void positionUpdated(const QGeoPositionInfo &info);
+
+    protected:
         QString              total_disc_space = "";
         QString              free_disc_space = "";
         QString              total_memory_system = "";
@@ -52,6 +59,9 @@ protected:
         qint64               max_memory_used = 0;
         QString              max_memory_time = "";
         qint64               max_threads_used = 0;
+        QString              latitude = "n/a";
+        QString              longitude = "n/a";
+        QGeoPositionInfoSource *m_locationSource;
         SystemInfos::DiscSpace *MyDiscSpace;
         SystemInfos::Memory     MyMemoryInfos;
         SystemInfos::General    MyGeneralInfos;

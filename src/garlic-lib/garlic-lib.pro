@@ -2,7 +2,7 @@ include(../defaults.pri)
 include(../ext/QtWebApp/httpserver/httpserver.pri)
 include(../ext/quazip/quazip.pri) # needed for android build
 
-QT       += core sql network xml widgets
+QT       += core sql network xml widgets positioning
 lessThan(QT_MAJOR_VERSION, 6): QT += xmlpatterns
 
 TEMPLATE  = lib

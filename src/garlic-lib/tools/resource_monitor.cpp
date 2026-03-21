@@ -16,10 +16,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "resource_monitor.h"
+#include <QDebug>
 
 ResourceMonitor::ResourceMonitor(QObject *parent) : QObject(parent)
 {
-
+    m_locationSource = QGeoPositionInfoSource::createDefaultSource(this);
+    if (m_locationSource)
+    {
+        connect(m_locationSource, SIGNAL(positionUpdated(QGeoPositionInfo)), this, SLOT(positionUpdated(QGeoPositionInfo)));
+        m_locationSource->startUpdates();
+    }
 }
 
 void ResourceMonitor::refresh()
@@ -28,6 +34,16 @@ void ResourceMonitor::refresh()
     determineMemorySystem();
     determineMemoryApp();
     determineThreads();
+    qInfo() << "Current Location: Latitude:" << latitude << "Longitude:" << longitude;
+}
+
+void ResourceMonitor::positionUpdated(const QGeoPositionInfo &info)
+{
+    if (info.isValid())
+    {
+        latitude = QString::number(info.coordinate().latitude(), 'f', 6);
+        longitude = QString::number(info.coordinate().longitude(), 'f', 6);
+    }
 }
 
 QString ResourceMonitor::getTotalDiscSpace() const
@@ -38,6 +54,16 @@ QString ResourceMonitor::getTotalDiscSpace() const
 QString ResourceMonitor::getFreeDiscSpace() const
 {
     return free_disc_space;
+}
+
+QString ResourceMonitor::getLatitude() const
+{
+    return latitude;
+}
+
+QString ResourceMonitor::getLongitude() const
+{
+    return longitude;
 }
 
 QString ResourceMonitor::getTotalMemorySystem() const
