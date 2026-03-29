@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/logo-full.png</file>
+        <file>images/logo-la.png</file>
+        <file alias="ConfigDialog.qml">ConfigDialog.qml</file>
+    </qresource>
+</RCC>

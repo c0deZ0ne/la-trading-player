@@ -84,7 +84,7 @@ KEY_ALIAS="your alias"
 KEY_PASSWORD="your key password"
 
 $QT_PATH_RUNTIME/bin/androiddeployqt \
-	--input ./player-c2qml/android-garlic-player-deployment-settings.json \
+	--input ./player-c2qml/android-la-player-deployment-settings.json \
 	--output ./player-c2qml/$BUILD_TARGET \
 	--deployment bundled \
 	--android-platform $ANDROID_API_VERSION \

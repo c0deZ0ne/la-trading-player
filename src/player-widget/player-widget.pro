@@ -230,7 +230,7 @@
 include(../defaults.pri)
 include(../player-common/common.pri)
 
-QT          += core gui sql xml xmlpatterns widgets
+QT          += core gui sql xml xmlpatterns widgets quick qml quickwidgets
 android: QT += androidextras
 !android: QT += webenginewidgets
 CONFIG      += warn_on c++11

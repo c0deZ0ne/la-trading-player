@@ -103,6 +103,11 @@ void RestApi::RequestMapper::querySystem(HttpRequest& request, HttpResponse &res
         QString res = MySIController.responseModelInfo();
         respond(response, res);
     }
+    else if (path.at(3) == "gpsInfo")
+    {
+        QString res = MySIController.responseGpsInfo();
+        respond(response, res);
+    }
     else
         responseNotFound(response);
 }

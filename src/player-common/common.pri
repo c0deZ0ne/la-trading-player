@@ -1,22 +1,23 @@
 SOURCES += \
     $$PWD/launcher.cpp \
-    ../player-common/player_configuration.cpp \
+    $$PWD/player_configuration.cpp \
     $$PWD/touch_manager.cpp \
-    ../player-common/cmdparser.cpp \
-    ../player-common/debug_infos.cpp \
-    ../player-common/configdialog.cpp \
-    ../player-common/screen.cpp
+    $$PWD/cmdparser.cpp \
+    $$PWD/debug_infos.cpp \
+    $$PWD/configdialog.cpp \
+    $$PWD/screen.cpp
 
 HEADERS  += \
     $$PWD/launcher.h \
-    ../player-common/player_configuration.h \
+    $$PWD/player_configuration.h \
     $$PWD/touch_manager.h \
-    ../player-common/cmdparser.h \
-    ../player-common/configdialog.h \
-    ../player-common/debug_infos.h \
-    ../player-common/screen.h
+    $$PWD/cmdparser.h \
+    $$PWD/configdialog.h \
+    $$PWD/debug_infos.h \
+    $$PWD/screen.h
 
 FORMS += \
-    ../player-common/configdialog.ui \
-    ../player-common/debug_infos.ui
+    $$PWD/debug_infos.ui
 
+RESOURCES += \
+    $$PWD/player_common.qrc

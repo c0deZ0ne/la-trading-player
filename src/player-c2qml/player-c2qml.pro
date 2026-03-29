@@ -1,6 +1,6 @@
 include(../defaults.pri)
 
-QT          += core sql network positioning widgets gui xml xmlpatterns quick qml quickcontrols2 multimedia multimediawidgets
+QT          += core sql network positioning widgets gui xml xmlpatterns quick qml quickwidgets quickcontrols2 multimedia multimediawidgets
 CONFIG      += warn_on c++11
 TARGET       = la-player
 TEMPLATE     = app

@@ -157,4 +157,28 @@ For Android and iOS player-c2qml is needed, cause only QML based multimedia is s
  - change config.xml during playback
  - remote update
 
+## Android Kiosk Mode (Device Owner)
+
+To enable true Kiosk Mode (Lock Task Mode) on Android, the application must be set as the **Device Owner**. This allows the app to lock the screen, disable the status bar, and prevent users from exiting.
+
+### Prerequisites
+1. A device with **no accounts** (Google, etc.) configured. If accounts exist, you must factory reset or remove them in Settings -> Accounts.
+2. **USB Debugging** enabled in Developer Options.
+3. The app must be installed on the device.
+
+### Setup Process
+Run the following ADB command from your terminal:
+
+```bash
+adb shell dpm set-device-owner com.sagiadinos.garlic.player/com.sagiadinos.garlic.player.java.AdminReceiver
+```
+
+### Features enabled by Device Owner:
+- **Lock Task Mode**: The app can lock itself to the foreground.
+- **Auto-Start**: The app can be configured to start automatically on boot.
+- **Silent Updates**: Install/Uninstall apps without user interaction (if using a custom launcher).
+- **Disabled Status Bar/Home/Recents**: Complete lockdown of the system UI.
+
+---
 Contact: [Niko Sagiadinos] (mailto:garlic@sagiadinos.de)
+

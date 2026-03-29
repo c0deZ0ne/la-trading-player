@@ -1,15 +1,13 @@
 #ifndef CONFIGDIALOG_H
 #define CONFIGDIALOG_H
 
-#include "tools/main_configuration.hpp"
+#include <QObject>
+#include <QWidget>
 #include <QDialog>
 
-namespace Ui
-{
-    class ConfigDialog;
-}
-
-#include "ui_configdialog.h"
+class QQuickWidget;
+class MainConfiguration;
+class QShowEvent;
 
 class ConfigDialog : public QDialog
 {
@@ -18,14 +16,18 @@ class ConfigDialog : public QDialog
         explicit ConfigDialog(QWidget *parent, MainConfiguration *Config);
         ~ConfigDialog();
 
+    void showEvent(QShowEvent *showEvent) override;
 
-    void showEvent(QShowEvent *showEvent);
-protected:
-        Ui::ConfigDialog *ui;
-        MainConfiguration   *MyConfiguration = NULL;
+    public slots:
+        void accept() override;
 
-    protected slots:
-        void accept();
+    private slots:
+        void onQmlAccepted();
+        void onQmlRejected();
+
+    protected:
+        QQuickWidget        *quickWidget;
+        MainConfiguration   *MyConfiguration = nullptr;
 
 };
 

@@ -44,3 +44,16 @@ QString RestApi::V2::SystemInfo::responseModelInfo()
     JsonResponse.insertStringValuePair("options", "");
     return JsonResponse.asString(false).toUtf8();
 }
+
+QString RestApi::V2::SystemInfo::responseGpsInfo()
+{
+    JsonResponse.reset();
+    if (MyLibfacade->getResourceMonitor() != nullptr) {
+        JsonResponse.insertStringValuePair("latitude", MyLibfacade->getResourceMonitor()->getLatitude());
+        JsonResponse.insertStringValuePair("longitude", MyLibfacade->getResourceMonitor()->getLongitude());
+    } else {
+        JsonResponse.insertStringValuePair("latitude", "n/a");
+        JsonResponse.insertStringValuePair("longitude", "n/a");
+    }
+    return JsonResponse.asString(false).toUtf8();
+}

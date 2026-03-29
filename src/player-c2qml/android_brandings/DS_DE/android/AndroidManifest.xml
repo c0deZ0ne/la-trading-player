@@ -7,12 +7,17 @@
          Remove the comment if you do not require these default features. -->
   <!-- %%INSERT_FEATURES -->
   <supports-screens android:usesCleartextTraffic="true" android:largeScreens="true" android:normalScreens="true" android:anyDensity="true" android:smallScreens="true"/>
-  <application android:hardwareAccelerated="true" android:name="org.qtproject.qt5.android.bindings.QtApplication" android:label="DS-Player" android:extractNativeLibs="true" android:icon="@drawable/icon">
-    <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:name="com.sagiadinos.garlic.player.java.GarlicActivity" android:label="DS-Player" android:screenOrientation="unspecified" android:launchMode="singleTop">
+  <application android:forceDarkAllowed="false" android:hardwareAccelerated="true" android:name="org.qtproject.qt5.android.bindings.QtApplication" android:label="DS-Player" android:extractNativeLibs="true" android:icon="@drawable/icon">
+    <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:name="com.sagiadinos.garlic.player.java.GarlicActivity" android:label="La-Player" android:screenOrientation="unspecified" android:launchMode="singleTop">
             <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.BOOT_COMPLETED" />
+            <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+            <category android:name="android.intent.category.DEFAULT" />
+        </intent-filter>
             <!-- Application arguments -->
             <!-- meta-data android:name="android.app.arguments" android:value="arg1 arg2 arg3"/ -->
             <!-- Application arguments -->
@@ -69,13 +74,24 @@
         </activity>
     <receiver android:name="com.sagiadinos.garlic.player.java.SmilIndexReceiver" android:enabled="true"/>
     <receiver android:name="com.sagiadinos.garlic.player.java.ConfigReceiver" android:enabled="true"/>
+    
+    <receiver android:name="com.sagiadinos.garlic.player.java.AdminReceiver"
+              android:label="Garlic Player Admin"
+              android:permission="android.permission.BIND_DEVICE_ADMIN">
+        <meta-data android:name="android.app.device_admin"
+                   android:resource="@xml/device_admin_receiver" />
+        <intent-filter>
+            <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+        </intent-filter>
+    </receiver>
     <!-- For adding service(s) please check: https://wiki.qt.io/AndroidServices -->
   </application>
-  <uses-sdk android:minSdkVersion="25" android:targetSdkVersion="29"/>
+  <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29"/>
 
 	<uses-permission android:name="android.permission.WAKE_LOCK"/>
 	<uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 </manifest>
