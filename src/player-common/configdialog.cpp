@@ -1,5 +1,7 @@
 #include "configdialog.h"
 #include "tools/main_configuration.hpp"
+#include "lib_facade.h"
+#include "vpn/wireguard_config.h"
 #include <QDialog>
 #include <QWidget>
 #include <QQuickWidget>
@@ -15,9 +17,10 @@
 #include <QDebug>
 #include <QQmlError>
 
-ConfigDialog::ConfigDialog(QWidget *parent, MainConfiguration *Config) :  QDialog(parent)
+ConfigDialog::ConfigDialog(QWidget *parent, MainConfiguration *Config, LibFacade *Lib) :  QDialog(parent)
 {
     MyConfiguration = Config;
+    MyLibFacade = Lib;
     
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setMargin(0);
@@ -35,6 +38,10 @@ ConfigDialog::ConfigDialog(QWidget *parent, MainConfiguration *Config) :  QDialo
     
     // Set context properties BEFORE loading the source
     quickWidget->rootContext()->setContextProperty("MyConfig", MyConfiguration);
+    if (MyLibFacade) {
+        quickWidget->rootContext()->setContextProperty("LibFacade", MyLibFacade);
+        quickWidget->rootContext()->setContextProperty("vpnConfig", MyLibFacade->getVpnConfig());
+    }
     
     quickWidget->setSource(QUrl("qrc:/ConfigDialog.qml"));
     

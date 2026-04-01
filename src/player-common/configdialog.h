@@ -7,13 +7,14 @@
 
 class QQuickWidget;
 class MainConfiguration;
+class LibFacade;
 class QShowEvent;
 
 class ConfigDialog : public QDialog
 {
         Q_OBJECT
     public:
-        explicit ConfigDialog(QWidget *parent, MainConfiguration *Config);
+        explicit ConfigDialog(QWidget *parent, MainConfiguration *Config, LibFacade *Lib = nullptr);
         ~ConfigDialog();
 
     void showEvent(QShowEvent *showEvent) override;
@@ -28,6 +29,7 @@ class ConfigDialog : public QDialog
     protected:
         QQuickWidget        *quickWidget;
         MainConfiguration   *MyConfiguration = nullptr;
+        LibFacade           *MyLibFacade = nullptr;
 
 };
 

@@ -137,3 +137,153 @@ flowchart TD
 1. **Source the BSP:** Work with your hardware manufacturer to obtain the Android Board Support Package (BSP) or AOSP source code for your specific digital signage boards.
 2. **Bake La-Player into the Source:** Your Android engineering team places the `la-player.apk` directly into the `packages/apps/` root folder of the Android OS code matrix. Crucially, La-Player is signed with the Android Platform Key, giving it core system-level permissions permanently.
 3. **Flash the Boards:** At the factory (or at your staging facility), workers use a USB flashing tool (e.g., Rockchip FactoryTool, Amlogic Burn Tool) to burn the resulting `.img` file directly onto all 200,000 motherboards on the assembly line before shipment.
+
+---
+
+## 6. Language Architecture: C++ vs Java
+
+The implementation is **~90% C++, ~10% Java**. The Java layer exists only because the Android OS mandates it for the `VpnService` permission gate — Android's `VpnService.Builder` API is not available via the NDK. Everything else lives in the Qt/C++ core.
+
+| Layer | File | Language | Responsibility |
+|---|---|---|---|
+| VPN config model | `garlic-lib/vpn/wireguard_config.h/.cpp` | **C++** | Stores private key, server IP, allowed IPs, DNS |
+| Tunnel engine | `garlic-lib/vpn/wireguard_tunnel.h/.cpp` | **C++** | WireGuard handshake, packet I/O, TUN fd management |
+| C++ → Java bridge | `android_manager.cpp` (extend existing) | **C++** | Calls `GarlicVpnService` via `QAndroidJniObject` |
+| Java → C++ bridge | `Java2Cpp.h` (extend existing) | **C++** | JNI callbacks from Java back into `LibFacade` |
+| OS permission shim | `GarlicVpnService.java` *(new, ~50 lines)* | Java | Calls `VpnService.establish()`, returns TUN fd to C++ |
+| Startup wiring | `GarlicActivity.java` (extend existing) | Java | One call to `startVpnService()` inside `onCreate()` |
+
+The flow is:
+```
+Qt C++ (reads config from CMS)
+  └─► android_manager.cpp  [QAndroidJniObject call]
+        └─► GarlicVpnService.java  [VpnService.establish() → gets TUN fd]
+              └─► Java2Cpp.h JNI callback  [passes fd back to C++]
+                    └─► wireguard_tunnel.cpp  [owns all crypto & packet I/O]
+```
+
+---
+
+## 7. Implementation Order
+
+Build in this sequence so each step is independently testable before moving to the next.
+
+### Step 1 — VPN Config Model (`garlic-lib/vpn/`)
+**Files:** `wireguard_config.h`, `wireguard_config.cpp`
+
+A simple data class that holds the WireGuard configuration pulled from the CMS:
+- Device private key
+- Server public key & endpoint (`host:port`)
+- Assigned virtual IP (e.g. `10.8.0.50/32`)
+- Allowed IPs & DNS
+
+### Step 2 — Java VPN Shim (`GarlicVpnService.java`)
+**Files:** `android/src/.../java/GarlicVpnService.java`, `AndroidManifest.xml`
+
+Implements `android.net.VpnService`. Its only job:
+1. Receive config values from C++ via JNI
+2. Call `VpnService.Builder.establish()` to get the TUN file descriptor
+3. Pass the fd back to C++ via a JNI callback
+
+### Step 3 — JNI Bridge (extend existing files)
+**Files:** `android_manager.cpp/.h`, `Java2Cpp.h`
+
+Extend the existing `AndroidManager` class with two new methods:
+- `startVpnTunnel(WireguardConfig &config)` — calls the Java shim
+- A new `JNIEXPORT` function in `Java2Cpp.h` — receives the TUN fd from Java
+
+### Step 4 — C++ Tunnel Engine (`garlic-lib/vpn/`)
+**Files:** `wireguard_tunnel.h`, `wireguard_tunnel.cpp`
+
+Owns the TUN fd and runs the WireGuard userspace implementation (using the WireGuard C library compiled as a static `.a` via qmake). Handles:
+- Key generation & handshake
+- Reading/writing encrypted packets on the TUN fd
+- Reconnect logic on network change
+
+### Step 5 — Startup Wiring
+**Files:** `GarlicActivity.java` (`onCreate`), `BootReceiver.java`
+
+Call `startService(new Intent(this, GarlicVpnService.class))` early in `onCreate()`, before the SMIL parser starts fetching assets. `BootReceiver` already starts `GarlicActivity`, so no separate boot logic is needed.
+
+### Step 6 — Build Config
+**Files:** `build.gradle` (Gradle template), `player-c2qml.pro`
+
+- Add `com.wireguard.android:tunnel` to Gradle dependencies
+- Add `ANDROID_PERMISSION_BIND_VPN_SERVICE` in `.pro` or manifest
+- Link WireGuard static library in qmake
+
+---
+
+## 8. Testing Plan
+
+### 8.1 Dev Device Testing (No Fleet Required)
+
+**Build & install:**
+```bash
+cd build_scripts/player
+./2.1_buildAndroid.sh
+adb install -r la-player-android-*-debug.apk
+```
+
+**Watch logs in real time:**
+```bash
+adb logcat -s "GarlicVPN" "WireGuard" "GarlicActivity"
+```
+
+Expected output when working:
+```
+GarlicVPN: Tunnel interface created (fd=47)
+GarlicVPN: Handshake complete with 10.8.0.1
+GarlicVPN: Assigned virtual IP: 10.8.0.50
+```
+
+**Verify end-to-end from the server:**
+```bash
+curl http://10.8.0.50:8080/v2/status
+```
+A valid JSON response confirms the CMS can reach the player over the VPN.
+
+### 8.2 The First-Time Permission Dialog
+
+On a non-Device-Owner dev/test device, Android shows a **one-time system dialog** on first install:
+
+> *"La-Player wants to set up a VPN connection — [OK] / [Cancel]"*
+
+- Tap **OK** once during development. It never appears again for that install.
+- On fully provisioned Device Owner hardware this dialog is **suppressed entirely** by the OS.
+
+### 8.3 Debug Status Overlay (QML — stripped in release)
+
+A small QML panel compilable into debug builds to show live VPN state on-screen without needing ADB:
+
+```qml
+// root_qtm.qml — visible only when launched with --vpn-debug flag
+Rectangle {
+    visible: Qt.application.arguments.indexOf("--vpn-debug") >= 0
+    anchors { top: parent.top; right: parent.right }
+    width: 220; height: 80; radius: 6
+    color: vpnConnected ? "#CC00AA44" : "#CCAA0000"
+
+    Column {
+        padding: 8; spacing: 4
+        Text { text: "VPN: " + vpnStatus;        color: "white"; font.pixelSize: 12 }
+        Text { text: "IP:  " + vpnVirtualIp;     color: "white"; font.pixelSize: 12 }
+        Text { text: "Last: " + lastHandshake + "s ago"; color: "white"; font.pixelSize: 12 }
+    }
+}
+```
+
+Launch with the overlay visible:
+```bash
+adb shell am start \
+  -n com.sagiadinos.garlic.player/.java.GarlicActivity \
+  --es vpn_debug true
+```
+
+### 8.4 Three-Phase Test Checklist
+
+| Phase | Goal | Pass Condition |
+|---|---|---|
+| **1 — Local only** | TUN interface created, permission granted | `adb logcat` shows fd assignment |
+| **2 — With WireGuard server** | Full handshake, virtual IP assigned | `curl http://<vpn-ip>:8080/v2/status` responds |
+| **3 — Full CMS integration** | CMS can send commands over VPN | Dashboard reboot/screenshot triggers confirmed on device |

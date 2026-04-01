@@ -67,7 +67,7 @@ android {
     else {
 
         # 5.15.2 fails to build arm64-v8a 5.15.11 succeed
-        ANDROID_ABIS = armeabi-v7a arm64-v8a x86 x86_64
+        ANDROID_ABIS = armeabi-v7a arm64-v8a
         equals(ANDROID_TARGET_ARCH, armeabi-v7a) {
             LIBS += -lgarlic_armeabi-v7a -lquazip_armeabi-v7a -lzlib_armeabi-v7a
         }
@@ -133,6 +133,7 @@ DISTFILES += \
     android/src/com/sagiadinos/garlic/player/java/SmilIndexReceiver.java \
     android/src/com/sagiadinos/garlic/player/java/BootReceiver.java \
     android/src/com/sagiadinos/garlic/player/java/SocketClient.java \
+    android/src/com/sagiadinos/garlic/player/java/GarlicVpnService.java \
     android_brandings/GarlicPlayer/android/build.gradle \
     android_brandings/GarlicPlayer/android/gradle.properties \
     android_brandings/GarlicPlayer/android/gradle/wrapper/gradle-wrapper.jar \

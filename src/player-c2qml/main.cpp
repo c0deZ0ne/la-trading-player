@@ -101,6 +101,31 @@ int main(int argc, char *argv[])
     MyPlayerConfiguration->determineInitConfigValues();
 
     MyLibFacade->init(MyMainConfiguration);
+
+#if defined Q_OS_ANDROID
+    // Connect VPN Signals to AndroidManager
+    WireguardConfig *vpnConfig = MyLibFacade->getVpnConfig();
+    QObject::connect(vpnConfig, &WireguardConfig::requestKeyGeneration, [vpnConfig, MyAndroidManager]() {
+        QStringList keys = MyAndroidManager->generateVpnKeyPair();
+        if (keys.size() >= 2) {
+            vpnConfig->setPrivateKey(keys[0]);
+            vpnConfig->setPublicKey(keys[1]);
+        }
+    });
+
+    QObject::connect(vpnConfig, &WireguardConfig::requestVpnStart, [MyAndroidManager](QString priv, QString addr, QString pub, QString endp) {
+        MyAndroidManager->startVpnTunnel(priv, addr, pub, endp);
+    });
+
+    QObject::connect(vpnConfig, &WireguardConfig::requestVpnStop, [MyAndroidManager]() {
+        MyAndroidManager->stopVpnTunnel();
+    });
+
+    QObject::connect(MyAndroidManager, &AndroidManager::vpnStatusChanged, vpnConfig, [vpnConfig](int status) {
+        vpnConfig->setStatus(status);
+    });
+#endif
+
     MyPlayerConfiguration->printVersionInformation();
 
     qmlRegisterType<LibFacade>("com.garlic.LibFacade", 1, 0, "LibFacade");

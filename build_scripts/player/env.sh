@@ -6,7 +6,7 @@ SCRIPTDIR=$(dirname "$0")
 export QT_BASE_PATH="C:/Qt"						# path to your qt base directory
 export QT_VERSION=5.15.2										# The Qt Version 5.7, 5.8, 5.9.2 etc
 export CONFIG_DEBUG_RELEASE=debug
-export DEV_JOBS=1			# determine how many cores can be used
+export DEV_JOBS=8			# determine how many cores can be used
 export ANDROID_API_VERSION=android-31
 
 if [ -z "QT_BASE_PATH" ]; then

@@ -1,4 +1,4 @@
-﻿/*************************************************************************************
+/*************************************************************************************
     garlic-player: SMIL Player for Digital Signage
     Copyright (C) 2016 Nikolaos Saghiadinos <ns@smil-control.com>
     This file is part of the garlic-player source code
@@ -16,6 +16,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "lib_facade.h"
+#include <QNetworkProxyFactory>
+#include <QNetworkProxy>
+#include <QNetworkProxyQuery>
+#include <QUrl>
+#include <QDebug>
 
 LibFacade::LibFacade(QObject *parent) : QObject(parent)
 {
@@ -57,19 +62,26 @@ void LibFacade::init(MainConfiguration *config)
     MyIndexManager.reset(new Files::IndexManager(MyInventoryTable.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
     connect(MyIndexManager.data(), SIGNAL(readyForLoading()), this, SLOT(loadIndex()));
 
-    resource_monitor_timer_id = startTimer(300000); // every 300s for ressource monitor
-
     MyTaskScheduler.reset(new SmilHead::TaskScheduler(MyInventoryTable.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
     connect(MyTaskScheduler.data(), SIGNAL(applyConfiguration()), this, SLOT(changeConfig()));
     connect(MyTaskScheduler.data(), SIGNAL(installSoftware(QString)), this, SLOT(emitInstallSoftware(QString)));
     connect(MyTaskScheduler.data(), SIGNAL(reboot(QString)), this, SLOT(reboot(QString)));
     connect(MyTaskScheduler.data(), SIGNAL(applyCommand(QString,QString)), this, SLOT(applyCommand(QString,QString)));
-
+    
+    MyVpnConfiguration.reset(new WireguardConfig(MyConfiguration.data(), this));
+    MyVpnConfiguration.data()->load();
 }
 
 ResourceMonitor *LibFacade::getResourceMonitor()
 {
     return &MyResourceMonitor;
+}
+
+void LibFacade::saveVpnConfig()
+{
+    if (!MyVpnConfiguration.isNull()) {
+        MyVpnConfiguration.data()->save();
+    }
 }
 
 void LibFacade::shutDownParsing()

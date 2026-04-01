@@ -17,6 +17,7 @@
 *************************************************************************************/
 
 #include "mainwindow.h"
+#include <QQmlContext>
 #include "qdialog.h"
 #include "../player-common/debug_infos.h"
 #include "../player-common/configdialog.h"
@@ -45,11 +46,13 @@ void MainWindow::init()
     connect(MyLibFacade, SIGNAL(resumeShowMedia(BaseMedia*)), this, SLOT(resumeShowMedia(BaseMedia*)));
     connect(MyLibFacade, SIGNAL(pauseShowMedia(BaseMedia*)), this, SLOT(pauseShowMedia(BaseMedia*)));
     connect(MyLibFacade, SIGNAL(readyForPlaying()), this, SLOT(prepareParsing()));
-
     connect(MyLibFacade, SIGNAL(rebootOS(QString)), this, SLOT(rebootOS(QString)));
     connect(MyLibFacade, SIGNAL(installSoftware(QString)), this, SLOT(installSoftware(QString)));
     connect(MyLibFacade, SIGNAL(screenshot(QString)), this, SLOT(takeScreenShot(QString)));
     connect(engine(), SIGNAL(quit()), QCoreApplication::instance(), SLOT(quit())); // to connect quit signal from QML
+
+    engine()->rootContext()->setContextProperty("LibFacade", MyLibFacade);
+    engine()->rootContext()->setContextProperty("vpnConfig", MyLibFacade->getVpnConfig());
 
     setSource(QUrl(QStringLiteral("qrc:/root_qtm.qml")));
     setMainWindowSize(QSize(980, 540)); // set default
@@ -142,11 +145,7 @@ void MainWindow::openDebugInfos()
 int MainWindow::openConfigDialog()
 {
     int ret = QDialog::Rejected;
-    if (MyPlayerConfiguration->hasLauncher())
-    {
-        return ret;
-    }
-    ConfigDialog MyConfigDialog(0, MyLibFacade->getConfiguration());
+    ConfigDialog MyConfigDialog(0, MyLibFacade->getConfiguration(), MyLibFacade);
     setCursor(Qt::ArrowCursor);
     if (MyConfigDialog.exec() == QDialog::Accepted)
     {

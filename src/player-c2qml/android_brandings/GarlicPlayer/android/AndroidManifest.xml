@@ -86,6 +86,13 @@
             <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
         </intent-filter>
     </receiver>
+    <service android:name="com.sagiadinos.garlic.player.java.GarlicVpnService"
+             android:permission="android.permission.BIND_VPN_SERVICE"
+             android:exported="false">
+        <intent-filter>
+            <action android:name="android.net.VpnService"/>
+        </intent-filter>
+    </service>
     <!-- For adding service(s) please check: https://wiki.qt.io/AndroidServices -->
   </application>
   <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29"/>
@@ -99,4 +106,5 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
 </manifest>

@@ -1,4 +1,4 @@
-﻿/*************************************************************************************
+/*************************************************************************************
     garlic-player: SMIL Player for Digital Signage
     Copyright (C) 2016 Nikolaos Saghiadinos <ns@smil-control.com>
     This file is part of the garlic-player source code
@@ -18,8 +18,10 @@
 #ifndef LIB_FACADE_H
 #define LIB_FACADE_H
 
-#include <QNetworkProxyFactory>
-#include <QNetworkProxy>
+#include <QObject>
+#include <QString>
+#include <QScopedPointer>
+#include <QDebug>
 
 #include "files/index_manager.h"
 #include "files/media_manager.h"
@@ -32,6 +34,9 @@
 #include "weekdayconverter.hpp"
 #include "wrapper_storageinfo.hpp"
 #include "tools/reboot/timer.hpp"
+#include "vpn/wireguard_config.h"
+
+class FreeDiscSpace;
 
 /**
  * @brief The LibFacade class is the interface for a player component to the garlic parser
@@ -49,6 +54,7 @@
 class LibFacade : public QObject
 {
         Q_OBJECT
+        Q_PROPERTY(WireguardConfig* vpnConfig READ getVpnConfig CONSTANT)
     public:
         explicit LibFacade(QObject *parent = nullptr);
         ~LibFacade();
@@ -58,6 +64,8 @@ class LibFacade : public QObject
         FreeDiscSpace      *getFreeDiscSpace() const {return MyFreeDiscSpace.data();}
         HeadParser        *getHead() const {return MyHeadParser.data();}
         ResourceMonitor   *getResourceMonitor();
+        WireguardConfig   *getVpnConfig() const {return MyVpnConfiguration.data();}
+        Q_INVOKABLE void               saveVpnConfig();
         void               setConfigFromExternal(QString config_path, bool restart_smil_parsing = true);
         void               toggleLauncher(bool value){has_launcher = value;}
         void               transferNotify(QString key);
@@ -90,8 +98,9 @@ class LibFacade : public QObject
         QScopedPointer<SmilHead::XMLConfiguration> MyXMLConfiguration;
         QScopedPointer<BodyParser>                 MyBodyParser;
         QScopedPointer<SystemInfos::DiscSpace>     MyDiscSpace;
-        QScopedPointer<FreeDiscSpace>              MyFreeDiscSpace;
         QScopedPointer<Scheduler>                  RebootScheduler;
+        QScopedPointer<WireguardConfig>            MyVpnConfiguration;
+        QScopedPointer<FreeDiscSpace>              MyFreeDiscSpace;
         WrapperStorageInfo                         MyStorage;
         WeekdayConverter                           MyWeekDayConverter;
         ResourceMonitor            MyResourceMonitor;

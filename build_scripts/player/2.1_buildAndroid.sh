@@ -93,11 +93,12 @@ $QT_PATH_RUNTIME/bin/androiddeployqt \
 	--$CONFIG_DEBUG_RELEASE \
 	--verbose || true
 # Update Gradle version for compatibility with AGP 7.0.4
-sed -i 's/gradle-5.6.4-bin.zip/gradle-7.0.2-bin.zip/' ./player-c2qml/$BUILD_TARGET/gradle/wrapper/gradle-wrapper.properties
+# Keep Gradle at 5.6.4 for AGP 3.6.0 compatibility
+# sed -i 's/gradle-5.6.4-bin.zip/gradle-7.0.2-bin.zip/' ./player-c2qml/$BUILD_TARGET/gradle/wrapper/gradle-wrapper.properties
 
 # Run Gradle manually
 cd ./player-c2qml/$BUILD_TARGET
-./gradlew assemble${CONFIG_DEBUG_RELEASE^}
+./gradlew assemble${CONFIG_DEBUG_RELEASE^} --build-cache --parallel --daemon
 cd ../..
 
 mv ./player-c2qml/$BUILD_TARGET/build/outputs/apk/$CONFIG_DEBUG_RELEASE/*.apk la-player-$ANDROID_ARCH-$DEPLOY_SUFFIX-$CONFIG_DEBUG_RELEASE.apk

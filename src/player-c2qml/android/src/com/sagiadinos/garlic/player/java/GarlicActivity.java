@@ -200,4 +200,5 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         return true;
     }
 
+    public static native void notifyVpnStateChanged(int state);
 }

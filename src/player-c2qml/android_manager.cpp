@@ -16,11 +16,31 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "android_manager.h"
+#include <jni.h>
+
+AndroidManager* AndroidManager::m_instance = nullptr;
 
 AndroidManager::AndroidManager()
 {
+    m_instance = this;
     MyActivity = QAndroidJniObject::callStaticObjectMethod("org/qtproject/qt5/android/QtNative", "activity", "()Landroid/app/Activity;");
     MyActivity.callMethod<void>("registerBroadcastReceiver");
+}
+
+AndroidManager* AndroidManager::instance()
+{
+    return m_instance;
+}
+
+// JNI Bridge
+extern "C" JNIEXPORT void JNICALL
+Java_com_sagiadinos_garlic_player_java_GarlicActivity_notifyVpnStateChanged(JNIEnv *env, jclass clazz, jint state)
+{
+    Q_UNUSED(env);
+    Q_UNUSED(clazz);
+    if (AndroidManager::instance()) {
+        emit AndroidManager::instance()->vpnStatusChanged(state);
+    }
 }
 
 bool AndroidManager::hasLauncher()
@@ -125,4 +145,73 @@ QString AndroidManager::getUUIDFromLauncher()
 {
     QAndroidJniObject s = MyActivity.callObjectMethod<jstring>("getUUIDFromLauncher");
     return s.toString();
+}
+
+QStringList AndroidManager::generateVpnKeyPair()
+{
+    QStringList pair;
+    QAndroidJniObject result = QAndroidJniObject::callStaticObjectMethod(
+        "com/sagiadinos/garlic/player/java/GarlicVpnService",
+        "generateKeyPair",
+        "()[Ljava/lang/String;"
+    );
+
+    if (result.isValid()) {
+        jobjectArray array = result.object<jobjectArray>();
+        QAndroidJniEnvironment env;
+        int count = env->GetArrayLength(array);
+        for (int i = 0; i < count; ++i) {
+            jstring s = (jstring)env->GetObjectArrayElement(array, i);
+            pair << QAndroidJniObject(s).toString();
+            env->DeleteLocalRef(s);
+        }
+    }
+    return pair;
+}
+
+void AndroidManager::startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint)
+{
+    if (!MyActivity.isValid()) return;
+
+    QAndroidJniObject intent("android/content/Intent", "()V");
+    QAndroidJniObject action = QAndroidJniObject::fromString("START");
+    QAndroidJniObject serviceClass = QAndroidJniObject::fromString("com.sagiadinos.garlic.player.java.GarlicVpnService");
+    
+    // Set component
+    QAndroidJniObject context = MyActivity.callObjectMethod("getApplicationContext", "()Landroid/content/Context;");
+    QAndroidJniObject packageName = context.callObjectMethod("getPackageName", "()Ljava/lang/String;");
+    intent.callObjectMethod("setClassName", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            packageName.object<jstring>(), serviceClass.object<jstring>());
+    
+    intent.callObjectMethod("setAction", "(Ljava/lang/String;)Landroid/content/Intent;", action.object<jstring>());
+    
+    // Add extras
+    intent.callObjectMethod("putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            QAndroidJniObject::fromString("privateKey").object<jstring>(), QAndroidJniObject::fromString(privateKey).object<jstring>());
+    intent.callObjectMethod("putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            QAndroidJniObject::fromString("address").object<jstring>(), QAndroidJniObject::fromString(address).object<jstring>());
+    intent.callObjectMethod("putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            QAndroidJniObject::fromString("serverPubKey").object<jstring>(), QAndroidJniObject::fromString(serverPubKey).object<jstring>());
+    intent.callObjectMethod("putExtra", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            QAndroidJniObject::fromString("endpoint").object<jstring>(), QAndroidJniObject::fromString(endpoint).object<jstring>());
+
+    MyActivity.callObjectMethod("startService", "(Landroid/content/Intent;)Landroid/content/ComponentName;", intent.object<jobject>());
+}
+
+void AndroidManager::stopVpnTunnel()
+{
+    if (!MyActivity.isValid()) return;
+
+    QAndroidJniObject intent("android/content/Intent", "()V");
+    QAndroidJniObject action = QAndroidJniObject::fromString("STOP");
+    QAndroidJniObject serviceClass = QAndroidJniObject::fromString("com.sagiadinos.garlic.player.java.GarlicVpnService");
+    
+    QAndroidJniObject context = MyActivity.callObjectMethod("getApplicationContext", "()Landroid/content/Context;");
+    QAndroidJniObject packageName = context.callObjectMethod("getPackageName", "()Ljava/lang/String;");
+    intent.callObjectMethod("setClassName", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;", 
+                            packageName.object<jstring>(), serviceClass.object<jstring>());
+    
+    intent.callObjectMethod("setAction", "(Ljava/lang/String;)Landroid/content/Intent;", action.object<jstring>());
+
+    MyActivity.callObjectMethod("startService", "(Landroid/content/Intent;)Landroid/content/ComponentName;", intent.object<jobject>());
 }

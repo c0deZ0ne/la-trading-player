@@ -179,6 +179,22 @@ adb shell dpm set-device-owner com.sagiadinos.garlic.player/com.sagiadinos.garli
 - **Silent Updates**: Install/Uninstall apps without user interaction (if using a custom launcher).
 - **Disabled Status Bar/Home/Recents**: Complete lockdown of the system UI.
 
+## WireGuard VPN Integration (Android)
+
+Garlic Player now supports a native **WireGuard VPN** tunnel for secure remote management and content delivery.
+
+### Completed Features:
+- **Native Android VpnService**: High-performance tunneling using the official WireGuard library.
+- **Secure Key Management**: On-device generation of Curve25519 key pairs. The Private Key never leaves the device.
+- **VPN Setup UI**: Accessible via the Configuration Dialog (Ctrl+S or 10-tap).
+- **Persistent Configuration**: VPN settings are stored securely in the local configuration and persist across app updates/restarts.
+
+### Next Steps for Setup:
+1. **CMS Registration**: Open the **VPN SETUP** on the device, generate a Public Key, and add it as a new Peer on your WireGuard server.
+2. **Server Configuration**: Input the Server Public Key, Endpoint (IP/Port), and the Virtual IP assigned to the device in the VPN Setup screen.
+3. **Connectivity Test**: Click **SAVE & CONNECT** and verify the tunnel status via Logcat (`adb logcat -s GarlicVpnService`).
+4. **Remote Control**: (Upcoming) VPN lifecycle management via CMS commands and REST API.
+
 ---
 Contact: [Niko Sagiadinos] (mailto:garlic@sagiadinos.de)
 

@@ -43,7 +43,8 @@ android{
     }
     else{
         CONFIG += staticlib # because androiddeploy is not able to put the dyn lib in the required folder
-        ANDROID_ABIS=armeabi-v7a arm64-v8a x86 x86_64
+        # ANDROID_ABIS=armeabi-v7a arm64-v8a x86 x86_64
+        ANDROID_ABIS=armeabi-v7a arm64-v8a
         equals(ANDROID_TARGET_ARCH, armeabi-v7a) {
             TARGET = garlic_armeabi-v7a
             LIBS += -lquazip_armeabi-v7a -lzlib_armeabi-v7a
@@ -192,7 +193,8 @@ SOURCES += \
     tools/reboot/timer.cpp \
     tools/reboot/weekdayconverter.cpp \
     tools/resource_monitor.cpp \
-    tools/wrapper_settings.cpp
+    tools/wrapper_settings.cpp \
+    vpn/wireguard_config.cpp
 
 HEADERS += \
     files/base_manager.h \
@@ -296,6 +298,7 @@ HEADERS += \
     reports/inventory_report_manager.h \
     db/inventory_table.h \
     lib_facade.h \
+    vpn/wireguard_config.h \
     tools/wrapper_settings.hpp \
     version.h
 

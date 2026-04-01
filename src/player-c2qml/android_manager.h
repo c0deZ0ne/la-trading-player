@@ -21,10 +21,13 @@
 #include <QObject>
 #include <QtAndroidExtras>
 
-class AndroidManager
+class AndroidManager : public QObject
 {
+    Q_OBJECT
     public:
         AndroidManager();
+        static AndroidManager* instance();
+
         bool hasLauncher();
         void fetchDeviceInformation();
         bool checkPermissiones();
@@ -34,9 +37,21 @@ class AndroidManager
         QString getLauncherName();
         QString getSmilIndexFromLauncher();
         QString getUUIDFromLauncher();
+
+        // VPN Integration
+        QStringList generateVpnKeyPair();
+        void startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint);
+        void stopVpnTunnel();
+
+    signals:
+        void vpnStatusChanged(int status);
+
     protected:
         QAndroidJniObject MyActivity;
         QString launcher_name;
+
+    private:
+        static AndroidManager* m_instance;
 };
 
 #endif // LAUNCHERMANAGER_H
