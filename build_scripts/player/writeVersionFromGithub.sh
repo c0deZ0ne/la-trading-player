@@ -9,8 +9,8 @@ if [ -z "$BUILD_NUMBER" ]; then
 else
 	export GIT_DIR=$WORKSPACE/
 fi
-COMMIT_NUMBER=`git --git-dir="$GIT_DIR.git" rev-list --all --count`
-VERSION_NAME=`git --git-dir="$GIT_DIR.git" describe --tags $(git --git-dir="$GIT_DIR.git" rev-list --tags --max-count=1)`
+COMMIT_NUMBER=`git --git-dir="$GIT_DIR/.git" rev-list --all --count`
+VERSION_NAME=`git --git-dir="$GIT_DIR/.git" describe --tags $(git --git-dir="$GIT_DIR/.git" rev-list --tags --max-count=1) 2>/dev/null || echo "v1.0"`
 
 export GARLIC_VERSION=${VERSION_NAME%%-*}.$COMMIT_NUMBER
 

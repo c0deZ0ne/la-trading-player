@@ -61,6 +61,7 @@ namespace Files
             int  error = 0;
         signals:
             void readyForLoading();
+            void downloadFailed(QString reason);
 
 
     };

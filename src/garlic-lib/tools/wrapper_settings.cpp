@@ -19,7 +19,7 @@
 
 WrapperSettings::WrapperSettings()
 {
-    MySettings = new QSettings(QSettings::IniFormat, QSettings::UserScope, "SmilControl", "garlic-player");
+    MySettings = new QSettings(QSettings::IniFormat, QSettings::UserScope, "SmilControl", "La Player");
 }
 
 QString WrapperSettings::value(const QString &key) const

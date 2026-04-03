@@ -25,6 +25,9 @@ class ConfigDialog : public QDialog
     private slots:
         void onQmlAccepted();
         void onQmlRejected();
+        void onInitStarted();
+        void onInitFailed(QString reason);
+        void onReadyForPlaying();
 
     protected:
         QQuickWidget        *quickWidget;

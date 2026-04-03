@@ -128,6 +128,8 @@ class LibFacade : public QObject
         void               pauseShowMedia(BaseMedia *media);
         void               resumeShowMedia(BaseMedia *media);
         void               readyForPlaying();
+        void               initStarted();
+        void               initFailed(QString reason);
         void               newConfig();
         void               screenshot(QString file_path);
         void               rebootOS(QString task_id);

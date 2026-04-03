@@ -16,6 +16,7 @@
 #include <QColor>
 #include <QDebug>
 #include <QQmlError>
+#include <QTimer>
 
 ConfigDialog::ConfigDialog(QWidget *parent, MainConfiguration *Config, LibFacade *Lib) :  QDialog(parent)
 {
@@ -68,6 +69,12 @@ ConfigDialog::ConfigDialog(QWidget *parent, MainConfiguration *Config, LibFacade
         rootObject->setProperty("playerName", MyConfiguration->getPlayerName());
         rootObject->setProperty("playlistUrl", MyConfiguration->getIndexUri());
         rootObject->setProperty("deviceId", MyConfiguration->getUuid());
+        
+        if (MyLibFacade) {
+            connect(MyLibFacade, &LibFacade::initStarted, this, &ConfigDialog::onInitStarted);
+            connect(MyLibFacade, &LibFacade::initFailed, this, &ConfigDialog::onInitFailed);
+            connect(MyLibFacade, &LibFacade::readyForPlaying, this, &ConfigDialog::onReadyForPlaying);
+        }
     }
 
 #if !defined Q_OS_ANDROID
@@ -102,11 +109,50 @@ void ConfigDialog::onQmlAccepted()
         MyConfiguration->setPlayerName(playerName);
         MyConfiguration->determineIndexUri(MyConfiguration->getValidatedContentUrl());
         MyConfiguration->determineUserAgent();
-        QDialog::accept();
+        
+        if (MyLibFacade) {
+            MyLibFacade->initParser();
+        } else {
+            QDialog::accept();
+        }
     }
     else
     {
         rootObject->setProperty("errorMessage", MyConfiguration->getErrorText());
+        rootObject->setProperty("isConnecting", false);
+    }
+}
+
+void ConfigDialog::onInitStarted()
+{
+    QObject *rootObject = quickWidget->rootObject();
+    if (rootObject) {
+        rootObject->setProperty("isConnecting", true);
+        rootObject->setProperty("statusMessage", "Connecting to CMS...");
+    }
+}
+
+void ConfigDialog::onInitFailed(QString reason)
+{
+    QObject *rootObject = quickWidget->rootObject();
+    if (rootObject) {
+        rootObject->setProperty("isConnecting", false);
+        rootObject->setProperty("errorMessage", reason);
+    }
+}
+
+void ConfigDialog::onReadyForPlaying()
+{
+    QObject *rootObject = quickWidget->rootObject();
+    if (rootObject) {
+        rootObject->setProperty("isConnecting", false);
+        rootObject->setProperty("isSuccess", true);
+        // Wait a bit before closing to show the success message
+        QTimer::singleShot(1500, this, [this]() {
+            QDialog::accept();
+        });
+    } else {
+        QDialog::accept();
     }
 }
 

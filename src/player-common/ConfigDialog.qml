@@ -19,9 +19,13 @@ Rectangle {
     }
 
     property string deviceId: ""
+    property string playerName: ""
     property string deviceIdPrefix: "BFD-"
     property string playlistUrl: ""
     property string errorMessage: ""
+    property bool isConnecting: false
+    property bool isSuccess: false
+    property string statusMessage: "Connecting to CMS..."
 
     signal accepted()
     signal rejected()
@@ -110,16 +114,15 @@ Rectangle {
                         }
 
                         
-                         // Device ID 
+                        // Device ID (reused as Device Name)
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: 20
                             Layout.rightMargin: 20
                             
                             TextField {
-                                id: deviceId
-                                text:""// root.deviceIdPrefix + root.deviceId
-                        
+                                id: nameInput
+                                text: root.playerName
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: root.fieldHeight
                                 color: "white"
@@ -127,14 +130,14 @@ Rectangle {
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
-                                placeholderText: root.deviceIdPrefix + root.deviceId
+                                placeholderText: "Device Model - ID"
                                 placeholderTextColor: "#888888"
                                 
                                 background: Rectangle {
                                     color: "#252525"
                                     radius: 8
-                                    border.color: deviceId.activeFocus ? "#ffff00" : "#333333"
-                                    border.width: deviceId.activeFocus ? 2 : 1
+                                    border.color: nameInput.activeFocus ? "#ffff00" : "#333333"
+                                    border.width: nameInput.activeFocus ? 2 : 1
                                     
                                     Text {
                                         text: "DEVICE NAME"
@@ -147,7 +150,7 @@ Rectangle {
                                         anchors.topMargin: 6
                                     }
                                 }
-                                onTextChanged: root.deviceId = text
+                                onTextChanged: root.playerName = text
                             }
                         }
 
@@ -213,8 +216,14 @@ Rectangle {
                             background: Rectangle {
                                 color: actionBtn.pressed ? "#d4cc00" : "#ffff00"
                                 radius: 8
+                                opacity: actionBtn.enabled ? 1.0 : 0.5
                             }
-                            onClicked: root.accepted()
+                            enabled: !root.isConnecting && !root.isSuccess
+                            onClicked: {
+                                root.isConnecting = true
+                                root.errorMessage = ""
+                                root.accepted()
+                            }
                         }
 
                         // VPN SETUP Button
@@ -266,4 +275,67 @@ Rectangle {
         }
     }
 
+    // --- PREMIUM LOADING OVERLAY ---
+    Rectangle {
+        id: loadingOverlay
+        anchors.fill: parent
+        color: "#aa000000"
+        visible: root.isConnecting || root.isSuccess
+        z: 1000
+
+        MouseArea { anchors.fill: parent } // Block interactions
+
+        Rectangle {
+            width: Math.min(parent.width * 0.8, 300)
+            height: 200
+            color: "#252525"
+            radius: 16
+            anchors.centerIn: parent
+            border.color: root.isSuccess ? "#00ff00" : "#444444"
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 20
+
+                Item {
+                    Layout.alignment: Qt.AlignHCenter
+                    width: 60
+                    height: 60
+
+                    BusyIndicator {
+                        anchors.fill: parent
+                        running: root.isConnecting
+                        visible: root.isConnecting
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✓"
+                        color: "#00ff00"
+                        font.pixelSize: 48
+                        visible: root.isSuccess
+                    }
+                }
+
+                Text {
+                    text: root.isSuccess ? "PAIRING SUCCESSFUL!" : root.statusMessage
+                    color: "white"
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    text: root.isSuccess ? "Starting Garlic Player..." : "Please wait while we sync with CMS"
+                    color: "#888888"
+                    font.pixelSize: 14
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+    }
 }

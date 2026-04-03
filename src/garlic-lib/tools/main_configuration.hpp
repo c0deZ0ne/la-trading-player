@@ -127,9 +127,9 @@ private:
         QString         time_zone = "";
         QString         cache_dir = "";
         QString         log_dir = "";
-        QString         app_name = "garlic-player";
+        QString         app_name = "La Player";
         QString         error_text = "";
-        void            createDirectoryIfNotExist(QString path);
+        bool            createDirectoryIfNotExist(QString path);
         void            determineIndexPath();
         void            determineOS();
 };

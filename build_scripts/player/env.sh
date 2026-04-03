@@ -21,7 +21,7 @@ export SHADOW_BUILD_DIR=build-$QT_VERSION-$CONFIG_DEBUG_RELEASE
 
 # check if called from jenkins to set correct paths
 if [ -z "$BUILD_NUMBER" ]; then
-	export GARLIC_DIR="c:/Users/Training/Desktop/garlic-player/"
+	GARLIC_DIR=$(cygpath -m "$(cd "$SCRIPTDIR/../.." && pwd)")
 	source $SCRIPTDIR/writeVersionFromGithub.sh 
 else
 	export GARLIC_DIR=$PWD

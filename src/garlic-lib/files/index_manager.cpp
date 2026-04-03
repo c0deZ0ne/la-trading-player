@@ -23,6 +23,9 @@ Files::IndexManager::IndexManager(DB::InventoryTable *it, MainConfiguration *con
     MyIndexModel    = new IndexModel(this);
     connect(MyDownloader, SIGNAL(succeed(TNetworkAccess*)), SLOT(doSucceed(TNetworkAccess*)));
     connect(MyDownloader, SIGNAL(notmodified(TNetworkAccess*)), SLOT(doNotModified(TNetworkAccess*)));
+    connect(MyDownloader, &TNetworkAccess::failed, this, [this](TNetworkAccess*) {
+        emit downloadFailed("Connection failed. Please check the URL or your network.");
+    });
 }
 
 void Files::IndexManager::init(QString src)

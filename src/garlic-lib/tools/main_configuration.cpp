@@ -19,6 +19,12 @@
 #include "main_configuration.hpp"
 #include <QXmlStreamReader>
 #include <QString>
+#include <QCryptographicHash>
+#include <QSysInfo>
+#ifdef Q_OS_ANDROID
+#include <QtAndroidExtras/QAndroidJniObject>
+#include <QtAndroidExtras/QtAndroid>
+#endif
 
 // need to define static variable
 QString MainConfiguration::log_directory = "";
@@ -92,18 +98,28 @@ void MainConfiguration::setPlayerName(const QString &value)
 
 void MainConfiguration::determinePlayerName()
 {
-    setPlayerName(getUserConfigByKey("player_name"));
-    if (getPlayerName() == "")
-    {
-        QString s = getUuid();
-        int     i = s.lastIndexOf("-");
-        if ( i != -1)
-        {
-            setPlayerName(s.right(s.length() - i - 1));
-        }
-        else
-            setPlayerName(s);
+    QString saved_name = getUserConfigByKey("player_name");
+    if (!saved_name.isEmpty()) {
+        setPlayerName(saved_name);
+        return;
     }
+
+    QString device_model = "";
+#ifdef Q_OS_ANDROID
+    QAndroidJniObject model = QAndroidJniObject::getStaticObjectField("android/os/Build", "MODEL", "Ljava/lang/String;");
+    device_model = model.toString();
+#else
+    device_model = QSysInfo::machineHostName();
+    if (device_model.isEmpty() || device_model == "localhost") {
+        device_model = QSysInfo::prettyProductName();
+    }
+#endif
+
+    QString full_id = getUuid();
+    QString auto_name = device_model + "_" + full_id;
+    
+    setPlayerName(auto_name);
+    // Note: We don't save to QSettings yet, so the user can still change it 
 }
 
 QString MainConfiguration::determineApiAccessToken(QString username, QString password)
@@ -156,8 +172,34 @@ QString MainConfiguration::getErrorText() const {return error_text;}
 
 QString MainConfiguration::createUuid()
 {
-    QString id = QUuid::createUuid().toString();
-    return id.mid(1, 36);// must start from 1 cause uuid will created as {uuid}
+    QString hardware_id = "";
+    
+#ifdef Q_OS_ANDROID
+    QAndroidJniObject context = QtAndroid::androidContext();
+    if (context.isValid()) {
+        QAndroidJniObject content_resolver = context.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
+        if (content_resolver.isValid()) {
+            QAndroidJniObject android_id_string = QAndroidJniObject::fromString("android_id");
+            QAndroidJniObject android_id = QAndroidJniObject::callStaticObjectMethod(
+                "android/provider/Settings$Secure", 
+                "getString", 
+                "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;", 
+                content_resolver.object(), 
+                android_id_string.object()
+            );
+            hardware_id = android_id.toString();
+        }
+    }
+#elif defined Q_OS_WIN32
+    hardware_id = QString::fromLatin1(QSysInfo::machineUniqueId().toHex());
+#endif
+
+    if (hardware_id.isEmpty()) {
+        QString id = QUuid::createUuid().toString();
+        return id.mid(1, 36); 
+    }
+    
+    return hardware_id;
 }
 
 void MainConfiguration::setIndexUri(const QString &value)
@@ -316,10 +358,24 @@ void MainConfiguration::createDirectories()
     cache_dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/cache/";
     log_dir   = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs/";
 #elif defined  Q_OS_ANDROID
-    // Using CacheLocation in Android is dangerous, cause that is limited App-Storage which flooding soon and crash the Player
-    // GenericDataLocation should be /sdcard
-    cache_dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/" +getAppName() + "/cache/";
-    log_dir   = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/" + getAppName() + "/logs/";
+    // Use AppDataLocation for OS-managed storage (deleted automatically on uninstall)
+    // This typically resolves to /storage/emulated/0/Android/data/<package>/files/
+    QString managed_root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!managed_root.isEmpty()) {
+        cache_dir = managed_root + "/cache/";
+        log_dir   = managed_root + "/logs/";
+        
+        // Try creating these directories. If it fails, fallback to internal storage
+        if (!createDirectoryIfNotExist(cache_dir) || !createDirectoryIfNotExist(log_dir)) {
+            qWarning(SmilParser) << "OS-managed external storage not writable, falling back to internal storage.";
+            cache_dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/cache/";
+            log_dir   = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs/";
+        }
+    } else {
+        qWarning(SmilParser) << "No managed data location found, falling back to internal storage.";
+        cache_dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/cache/";
+        log_dir   = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs/";
+    }
 #else
     cache_dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)+ "/";
     log_dir   = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs/";
@@ -362,15 +418,16 @@ void MainConfiguration::determineIndexPath()
     }
 }
 
-void MainConfiguration::createDirectoryIfNotExist(QString path)
+bool MainConfiguration::createDirectoryIfNotExist(QString path)
 {
     QDir dir;
     dir.setPath(path);
     if (!dir.exists() && !dir.mkpath("."))
     {
         qCritical(SmilParser) << "Failed to create " << dir.path() << "\r";
+        return false;
     }
-    return;
+    return true;
 }
 
 void MainConfiguration::determineOS()

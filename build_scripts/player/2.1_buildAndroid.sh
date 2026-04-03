@@ -32,13 +32,18 @@ source $SCRIPTDIR/env.sh
 
 export ANDROID_ARCH="android"							# Qt >= 5.14 supports android multi-ABI builds have a look in pro-files
 export ANDROID_SDK_ROOT="C:/Users/Training/AppData/Local/Android/Sdk" 					 	# Your full basic path to your Android SDK tools do not use ~/ 
-export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk-bundle	  		# path to Google NDK use this NDK
+export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/22.1.7171670	  		# path to Google NDK use this NDK
 export QT_MKSPEC=android-clang  								    # android-clang or android-g++
 
 #
-export JDK_PATH="C:/Program Files/Eclipse Adoptium/jdk-11.0.28.6-hotspot"					# you can use openjdk 11, too
-export JAVA_HOME=$JDK_PATH
-export PATH=$JAVA_HOME/bin:$PATH
+export JDK_PATH="C:/Users/Training/jdk11"
+export JAVA_HOME=$(cygpath -u "$JDK_PATH")
+export PATH="$JAVA_HOME/bin:$PATH"
+
+echo "Checking Java configuration..."
+java -version
+which java
+echo "JAVA_HOME is set to: $JAVA_HOME"
 
 # =====================================================
 
@@ -55,18 +60,26 @@ cd $BUILD_DIR
 echo 
 echo ========== prepare build 
 echo 
-$QT_PATH_RUNTIME/bin/qmake -r -spec $QT_MKSPEC  $GARLIC_DIR/src/complete_c2qml.pro CONFIG+=$CONFIG_DEBUG_RELEASE CONFIG+=qml_$CONFIG_DEBUG_RELEASE
+$QT_PATH_RUNTIME/bin/qmake -r -spec $QT_MKSPEC "$GARLIC_DIR/src/complete_c2qml.pro" CONFIG+=$CONFIG_DEBUG_RELEASE CONFIG+=qml_$CONFIG_DEBUG_RELEASE CONFIG+=android ANDROID_ABIS="armeabi-v7a arm64-v8a"
+find . -name "Makefile*" -exec touch {} +
 
 echo 
 echo ========== build 
 echo 
-make -j $DEV_JOBS --silent
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS QMAKE="echo skipping qmake" 2>&1 | tee build_log.txt
+
+echo 
+echo ========== run ranlib on static libraries 
+echo 
+"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/windows-x86_64/bin/arm-linux-androideabi-ranlib" ../libandroid/*.a || true
+"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android-ranlib" ../libandroid/*.a || true
 
 echo 
 echo ========== pack apk with gradle 
 echo 
 rm -rf $BUILD_TARGET
-make INSTALL_ROOT=$BUILD_TARGET install || true
+find . -name "Makefile*" -exec touch {} +
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" QMAKE="echo skipping qmake" INSTALL_ROOT=$BUILD_TARGET install || true
 
 # this is for every ABI. If you want to use less uncomment the mathcin lines
 # $QT_PATH_RUNTIME/bin/qmake -install qinstall -exe bin/libgarlic-player_arm64-v8a.so ./player-c2qml/$BUILD_TARGET/libs/arm64-v8a/libgarlic-player_arm64-v8a.so
@@ -98,7 +111,7 @@ $QT_PATH_RUNTIME/bin/androiddeployqt \
 
 # Run Gradle manually
 cd ./player-c2qml/$BUILD_TARGET
-./gradlew assemble${CONFIG_DEBUG_RELEASE^} --build-cache --parallel --daemon
+./gradlew -Dhttps.protocols=TLSv1.2 assemble${CONFIG_DEBUG_RELEASE^} --build-cache --parallel --daemon
 cd ../..
 
 mv ./player-c2qml/$BUILD_TARGET/build/outputs/apk/$CONFIG_DEBUG_RELEASE/*.apk la-player-$ANDROID_ARCH-$DEPLOY_SUFFIX-$CONFIG_DEBUG_RELEASE.apk

@@ -61,6 +61,7 @@ void LibFacade::init(MainConfiguration *config)
     MyDiscSpace.data()->init(MyConfiguration.data()->getPaths("cache"));
     MyIndexManager.reset(new Files::IndexManager(MyInventoryTable.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
     connect(MyIndexManager.data(), SIGNAL(readyForLoading()), this, SLOT(loadIndex()));
+    connect(MyIndexManager.data(), &Files::IndexManager::downloadFailed, this, &LibFacade::initFailed);
 
     MyTaskScheduler.reset(new SmilHead::TaskScheduler(MyInventoryTable.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
     connect(MyTaskScheduler.data(), SIGNAL(applyConfiguration()), this, SLOT(changeConfig()));
@@ -92,6 +93,7 @@ void LibFacade::shutDownParsing()
 
 void LibFacade::initParser()
 {
+    emit initStarted();
     MyIndexManager.data()->init(MyConfiguration.data()->getIndexUri());
     MyIndexManager.data()->lookUpForUpdatedIndex();
 

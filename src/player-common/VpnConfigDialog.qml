@@ -5,15 +5,15 @@ import QtQuick.Window 2.12
 
 Rectangle {
     id: vpnRoot
-    width: Screen.width > 0 ? Screen.width : 540
-    height: Screen.height > 0 ? Screen.height : 960
-    color: "#000000"
+    anchors.fill: parent
+    color: "transparent"
 
-    // Background overlay
+    // Background overlay for when loaded standalone
     Rectangle {
         anchors.fill: parent
         color: "#050505"
         opacity: 0.9
+        visible: parent.width > vpnCard.width || parent.height > vpnCard.height
     }
 
     property string errorMessage: ""
