@@ -18,10 +18,11 @@
 
 #include "head_parser.h"
 
-HeadParser::HeadParser(MainConfiguration *config, Files::MediaManager *mm, DB::InventoryTable *it, SmilHead::PlaceHolder *ph, SystemInfos::DiscSpace *ds, QObject *parent) : QObject(parent)
+HeadParser::HeadParser(MainConfiguration *config, Files::MediaManager *mm, DB::InventoryTable *it, SmilHead::PlaceHolder *ph, SystemInfos::DiscSpace *ds, ResourceMonitor *rm, QObject *parent) : QObject(parent)
 {
     MyConfiguration  = config;
     MyDiscSpace      = ds;
+    MyResourceMonitor = rm;
     MyMediaManager   = mm;
     MyInventoryTable = it;
     MyPlaceHolder    = ph;
@@ -130,7 +131,7 @@ void HeadParser::parseMetaData(QDomElement element, SmilHead::TaskScheduler *MyT
         subscription->parse(node_list.at(i).toElement());
         if (subscription->getType() == "SystemReport")
         {
-            MySystemReportManager.reset(new Reporting::SystemReportManager(MyConfiguration, MyDiscSpace));
+            MySystemReportManager.reset(new Reporting::SystemReportManager(MyConfiguration, MyDiscSpace, MyResourceMonitor));
             MySystemReportManager.data()->init(subscription->getAction(), subscription->getRefreshInterval());
         }
         else if (subscription->getType() == "InventoryReport" && MyInventoryTable != Q_NULLPTR)

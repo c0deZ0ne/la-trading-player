@@ -36,10 +36,10 @@ QString RestApi::V2::SystemInfo::responseModelInfo()
     JsonResponse.insertStringValuePair("modelDescription", "");
     JsonResponse.insertStringValuePair("modelName", MyLibfacade->getConfiguration()->getAppName());
     JsonResponse.insertStringValuePair("modelURL", "");
-    JsonResponse.insertStringValuePair("manufacturer", "Sagiadinos");
+    JsonResponse.insertStringValuePair("manufacturer", "La-Player");
     JsonResponse.insertStringValuePair("licenseModel", MyLibfacade->getConfiguration()->getOS());
     JsonResponse.insertStringValuePair("PCBRevision", "");
-    JsonResponse.insertStringValuePair("manufacturerURL", "https://garlic-player.com");
+    JsonResponse.insertStringValuePair("manufacturerURL", "https://la-player.com");
     JsonResponse.insertStringValuePair("PCB", MyLibfacade->getConfiguration()->getAppName());
     JsonResponse.insertStringValuePair("options", "");
     return JsonResponse.asString(false).toUtf8();

@@ -68,7 +68,16 @@ void Video::loadInternal()
     if (load(media_item.data()))
     {
         // to set Volume we need to cast
+        if (SmilMedia == Q_NULLPTR)
+            return;
+
         MediaParser::TVideo *MyVideo = qobject_cast<MediaParser::TVideo *> (SmilMedia);
+        if (MyVideo == Q_NULLPTR)
+        {
+            qWarning() << "Video::loadInternal: SmilMedia is not a TVideo object or is invalid";
+            return;
+        }
+
         float vol = determineVolume(MyVideo->getSoundLevel());
         media_item.data()->setProperty("volume", vol);
     }
@@ -76,6 +85,9 @@ void Video::loadInternal()
 
 void Video::changeSize(int w, int h)
 {
+    if (SmilMedia == Q_NULLPTR || media_item.isNull())
+        return;
+
     QString smil_fit = SmilMedia->getFit().toLower();
     media_item.data()->setProperty("w", w);
     media_item.data()->setProperty("h", h);

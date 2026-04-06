@@ -17,9 +17,10 @@
 *************************************************************************************/
 #include "system_report.h"
 
-Reporting::CreateSystemReport::CreateSystemReport(MainConfiguration *config,
+Reporting::CreateSystemReport::CreateSystemReport(MainConfiguration *config, ResourceMonitor *rm,
                            QObject *parent) : Reporting::CreateBase(config, parent)
 {
+    MyResourceMonitor = rm;
     MyConfiguration = config;
     MyNetwork.reset(new SystemInfos::Network(this));
 
@@ -29,6 +30,7 @@ void Reporting::CreateSystemReport::process()
 {
     init();
     createSystemInfo();
+    createGpsInfo();
     createNetwork();
     createConfiguration();
     createModelInfo();
@@ -48,6 +50,17 @@ void Reporting::CreateSystemReport::createNetwork()
             appendNetworkChilds();
 
         MyNetwork->nextInterface();
+    }
+}
+
+void Reporting::CreateSystemReport::createGpsInfo()
+{
+    if (MyResourceMonitor != nullptr) {
+        system_info.appendChild(createTagWithTextValue("latitude", MyResourceMonitor->getLatitude()));
+        system_info.appendChild(createTagWithTextValue("longitude", MyResourceMonitor->getLongitude()));
+    } else {
+        system_info.appendChild(createTagWithTextValue("latitude", "n/a"));
+        system_info.appendChild(createTagWithTextValue("longitude", "n/a"));
     }
 }
 

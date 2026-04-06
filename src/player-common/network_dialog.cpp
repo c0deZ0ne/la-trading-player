@@ -1,6 +1,6 @@
 #include "network_dialog.h"
 
-NetworkDialog::NetworkDialog(QWidget *parent, TConfiguration *Config) : QDialog(parent), ui(new Ui::NetworkDialog)
+NetworkDialog::NetworkDialog(QWidget *parent, MainConfiguration *Config) : QDialog(parent), ui(new Ui::NetworkDialog)
 {
     ui->setupUi(this);
     MyConfiguration = Config;

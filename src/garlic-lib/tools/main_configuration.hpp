@@ -77,12 +77,12 @@ class MainConfiguration  : public QObject, public IMainConfiguration
         QString         getApiAccessToken();
         QString         getApiAccessTokenExpire();
 
-        QString         getUuid() const;
-        QString         getPlayerName() const;
+        Q_INVOKABLE QString         getUuid() const;
+        Q_INVOKABLE QString         getPlayerName() const;
         void            setLogDir(const QString &value);
         void            setUserAgent(const QString &value);
         QString         getUserAgent() const;
-        QString         getIndexUri();
+        Q_INVOKABLE QString         getIndexUri();
         QString         getOS() const;
         QString         getIndexPath();
         QString         getTimeZone() const;

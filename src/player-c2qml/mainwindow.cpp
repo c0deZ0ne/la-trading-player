@@ -21,6 +21,11 @@
 #include "qdialog.h"
 #include "../player-common/debug_infos.h"
 #include "../player-common/configdialog.h"
+#include "../player-common/network_dialog.h"
+
+#if defined Q_OS_ANDROID
+#include "android_manager.h"
+#endif
 
 MainWindow::MainWindow(TScreen *screen, LibFacade *lib_facade, PlayerConfiguration *pc)
 {
@@ -30,7 +35,8 @@ MainWindow::MainWindow(TScreen *screen, LibFacade *lib_facade, PlayerConfigurati
     MyRegionsList          = new RegionsList(this);
     MyLauncher.reset(new Launcher());
     MyLauncher.data()->toogleLauncher(MyPlayerConfiguration->hasLauncher());
-
+    setColor(QColor("#000000"));
+    setResizeMode(QQuickView::SizeRootObjectToView);
 }
 
 MainWindow::~MainWindow()
@@ -53,6 +59,7 @@ void MainWindow::init()
 
     engine()->rootContext()->setContextProperty("LibFacade", MyLibFacade);
     engine()->rootContext()->setContextProperty("vpnConfig", MyLibFacade->getVpnConfig());
+    engine()->rootContext()->setContextProperty("MainApp", this);
 
     setSource(QUrl(QStringLiteral("qrc:/root_qtm.qml")));
     setMainWindowSize(QSize(980, 540)); // set default
@@ -155,6 +162,20 @@ int MainWindow::openConfigDialog()
     setCursor(Qt::BlankCursor);
 
     return ret;
+}
+
+void MainWindow::openNetworkSettings()
+{
+#if defined Q_OS_ANDROID
+    if (AndroidManager::instance()) {
+        AndroidManager::instance()->openNetworkSettings();
+    }
+#else
+    NetworkDialog MyNetworkDialog(0, MyLibFacade->getConfiguration());
+    setCursor(Qt::ArrowCursor);
+    MyNetworkDialog.exec();
+    setCursor(Qt::BlankCursor);
+#endif
 }
 
 void MainWindow::resizeAsNormalFullScreen()

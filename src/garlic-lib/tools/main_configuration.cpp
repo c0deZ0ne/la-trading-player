@@ -21,9 +21,10 @@
 #include <QString>
 #include <QCryptographicHash>
 #include <QSysInfo>
+#include <QUuid>
 #ifdef Q_OS_ANDROID
-#include <QtAndroidExtras/QAndroidJniObject>
-#include <QtAndroidExtras/QtAndroid>
+#include <QAndroidJniObject>
+#include <QtAndroid>
 #endif
 
 // need to define static variable
@@ -180,14 +181,20 @@ QString MainConfiguration::createUuid()
         QAndroidJniObject content_resolver = context.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
         if (content_resolver.isValid()) {
             QAndroidJniObject android_id_string = QAndroidJniObject::fromString("android_id");
+            jstring j_android_id_string = android_id_string.object<jstring>();
+            jobject j_content_resolver = content_resolver.object<jobject>();
+
             QAndroidJniObject android_id = QAndroidJniObject::callStaticObjectMethod(
                 "android/provider/Settings$Secure", 
                 "getString", 
                 "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;", 
-                content_resolver.object(), 
-                android_id_string.object()
+                j_content_resolver, 
+                j_android_id_string
             );
-            hardware_id = android_id.toString();
+            
+            if (android_id.isValid()) {
+                hardware_id = android_id.toString();
+            }
         }
     }
 #elif defined Q_OS_WIN32

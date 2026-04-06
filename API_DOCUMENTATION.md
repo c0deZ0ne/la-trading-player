@@ -1,123 +1,121 @@
-# La-Player (Garlic Player) REST API Documentation
+# Garlic Player - REST API Documentation (v2)
 
-The player exposes a local HTTP REST API mapped under the `/v2/` path. All API endpoints return data in `application/json` format.
+The Garlic Player exposes a local REST API for device management, file synchronization, and playback control.
 
-## Authentication (OAuth 2.0)
+## Base URL
+`http://<device-ip>:<port>/v2`
 
-Most endpoints require an `access_token` to be passed as a request parameter. To obtain this token, you must first authenticate using the default credentials.
-
-### `POST /v2/oauth2/token`
-
-**Description:** Retrieves a Bearer token for accessing protected endpoints.
-
-**Request Body (application/json) or Form-Data:**
-```json
-{
-  "grant_type": "password",
-  "username": "admin",
-  "password": ""
-}
-```
-*(Note: `admin` and an empty password are the default credentials unless modified in the player's core configuration).*
-
-**Response Example:**
-```json
-{
-  "access_token": "your_generated_token_string",
-  "token_type": "Bearer",
-  "expires_in": "3600"
-}
-```
+> [!NOTE]
+> Most endpoints (except for authentication) require a valid `access_token` passed as a query parameter.
 
 ---
 
-## System Information Endpoints
+## 1. Authentication
 
-These endpoints retrieve details about the device, the operative system (OS), the player's software version, and real-time hardware status such as location (GPS).
+### Get Access Token
+Obtain a token for authorized API calls.
 
-**Base Requirements for these endpoints:**
-- **URL Parameter:** `?access_token=your_generated_token_string`
-
-### `GET /v2/system/firmwareInfo`
-
-**Description:** Returns the software version of the player and the device family (which includes the OS).
-
-**Response Example:**
-```json
-{
-  "firmwareVersion": "v0.6.0.671",
-  "family": "La-Player-android"
-}
-```
-- `firmwareVersion`: The current build version of the player.
-- `family`: A combination of the application name and the underlying operative system (e.g., `android`, `linux`, `windows`).
-
-### `GET /v2/system/modelInfo`
-
-**Description:** Returns detailed model configuration, including the license model which specifies the underlying Operating System.
-
-**Response Example:**
-```json
-{
-  "modelDescription": "",
-  "modelName": "La-Player",
-  "modelURL": "",
-  "manufacturer": "Sagiadinos",
-  "licenseModel": "android",
-  "PCBRevision": "",
-  "manufacturerURL": "https://garlic-player.com",
-  "PCB": "La-Player",
-  "options": ""
-}
-```
-- `modelName` / `PCB`: The branded name of the application (e.g., La-Player).
-- `licenseModel`: Represents the Operative System the player is currently running on (e.g., `android`).
-
-### `GET /v2/system/gpsInfo`
-
-**Description:** Returns the current real-time GPS location of the device if running on Android with location permissions granted.
-
-**Response Example:**
-```json
-{
-  "latitude": "52.520008",
-  "longitude": "13.404954"
-}
-```
-*(Note: Returns `"n/a"` for latitude and longitude if location services are disabled, unavailable, or permissions are not granted).*
+- **Endpoint**: `/oauth2/token`
+- **Method**: `POST`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "grant_type": "password",
+    "username": "your_username",
+    "password": "your_password"
+  }
+  ```
+- **Response**: Returns a JSON object containing the `access_token`.
 
 ---
 
-## Task Management Endpoints
+## 2. System Information
 
-**Base Requirements:**
-- **URL Parameter:** `?access_token=your_generated_token_string`
+### Get Firmware Info
+- **Endpoint**: `/system/firmwareInfo`
+- **Method**: `GET`
 
-### `GET /v2/task/reboot`
+### Get Model Info
+- **Endpoint**: `/system/modelInfo`
+- **Method**: `GET`
 
-**Description:** Triggers a system-level reboot of the device.
-
-**Response Example:**
-*(Empty Response on success)*
+### Get GPS Info
+- **Endpoint**: `/system/gpsInfo`
+- **Method**: `GET`
 
 ---
 
-## Quick Start Example Workflow
+## 3. File Management
 
-Assuming the player is running on `http://192.168.1.100:8080`, a typical workflow using `curl` would be:
+### Upload New File
+- **Endpoint**: `/files/new`
+- **Method**: `POST`
+- **Query Parameters**: `fileSize`, `downloadPath`, `etag`, `mimeType`, `modifiedDate`
+- **Form Data**: `data` (binary file content)
 
-1. **Get the Token:**
-   ```bash
-   curl -X POST http://192.168.1.100:8080/v2/oauth2/token -H "Content-Type: application/json" -d '{"grant_type":"password", "username":"admin", "password":""}'
-   ```
+### List and Search Files
+- **Endpoint**: `/files/find`
+- **Method**: `GET` / `POST`
+- **Parameters (Query or JSON)**: `maxResults`, `pageToken`
+- **Description**: Returns a paginated list of files stored in the player cache.
 
-2. **Fetch Device Location (GPS):**
-   ```bash
-   # Use the token received from the previous step
-   curl -X GET "http://192.168.1.100:8080/v2/system/gpsInfo?access_token=YOUR_TOKEN"
-   ```
+### Delete File
+- **Endpoint**: `/files/delete`
+- **Method**: `POST`
+- **Parameters (Query or JSON)**: `id` (The file ID or path)
 
-3. **Reboot the Device remotely:**
-   ```bash
-   curl -X GET "http://192.168.1.100:8080/v2/task/reboot?access_token=YOUR_TOKEN"
-   ```
+### Get/Modify File by ID
+- **Endpoint**: `/files/{id}`
+- **Methods**: 
+  - `GET`: Retrieve metadata for a specific file.
+  - `POST`: Update/Resume file upload. (Supports `seek` parameter for partial uploads).
+
+---
+
+## 4. Application & Playback Control
+
+### Execute Temporary URI
+- **Endpoint**: `/app/exec`
+- **Method**: `POST`
+- **Parameters (Query or JSON)**: `uri`, `packageName`, `className`, `Action`, `Type`
+- **Description**: Plays the provided URI/App immediately without changing the device's default startup content.
+
+### Start Content (Update Home)
+- **Endpoint**: `/app/start`
+- **Method**: `POST`
+- **Parameters (Query or JSON)**: `uri`, `packageName`, `className`
+- **Description**: Sets the provided URI as the device's main content and switches to playback.
+
+### Switch Playback Mode
+- **Endpoint**: `/app/switch`
+- **Method**: `POST`
+- **Parameters (Query or JSON)**: `mode` (currently only `"start"` is supported)
+- **Description**: Commands the player to return to its primary SMIL parsing engine.
+
+---
+
+## 5. Device Tasks
+
+### Send SMIL Notification
+- **Endpoint**: `/task/notify`
+- **Method**: `POST`
+- **Parameters (Query or JSON)**: `smilEvent`
+- **Description**: Injects an event into the SMIL runtime (useful for interactive triggers).
+
+### Reboot Device
+- **Endpoint**: `/task/reboot`
+- **Method**: `POST`
+
+### Capture Screenshot
+- **Endpoint**: `/task/screenshot`
+- **Method**: `GET`
+- **Response**: Returns a live JPEG screenshot of the current player output.
+
+---
+
+## 6. Access Local Cache
+
+### Static File Access
+- **Endpoint**: `/cache/*`
+- **Method**: `GET`
+- **Description**: Direct HTTP access to any file stored in the local `garlic-player` cache directory.

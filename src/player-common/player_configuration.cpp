@@ -67,24 +67,11 @@ QString PlayerConfiguration::determineDefaultContentUrlName()
 
 QString PlayerConfiguration::determineDefaultContentUrl()
 {
-    QString protocol = "https";
-    QString url      = "indexes.smil-control.com";
-    QString tmp      = "";
-
-#ifdef DEFAULT_CONTENT_URL_NAME
-    tmp =  STRINGIFY(DEFAULT_CONTENT_URL_PROTOCOL);
-    if (tmp != "")
-        protocol = tmp;
-#endif
-
-#ifdef DEFAULT_CONTENT_URL_NAME
-    tmp = "";
-    tmp =  STRINGIFY(DEFAULT_CONTENT_URL);
-    if (tmp != "")
-        url = tmp;
-#endif
-
-    return protocol + "://" + url;
+    QString deviceId = MyMainConfiguration->getUuid();
+    if (deviceId.isEmpty()) {
+        deviceId = MyMainConfiguration->createUuid();
+    }
+    return QString("https://la-trading-api.onrender.com/api/v1/device-playlist/%1/xml").arg(deviceId);
 }
 
 
@@ -122,6 +109,11 @@ void PlayerConfiguration::determineSmilIndexUri()
     if (has_launcher && launcher_smil_index_uri != MyMainConfiguration->getIndexUri())
     {
         MyMainConfiguration->setIndexUri(launcher_smil_index_uri);
+    }
+    
+    if (MyMainConfiguration->getIndexUri().isEmpty())
+    {
+        MyMainConfiguration->setIndexUri(determineDefaultContentUrl());
     }
 }
 

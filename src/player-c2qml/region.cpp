@@ -135,6 +135,7 @@ void TRegion::stopShowMedia(BaseMedia *media)
 
     MyMedia->stop();
     delete MyMedia;
+    MyMedia = Q_NULLPTR;
 
 /*
 
@@ -193,6 +194,10 @@ void TRegion::resizeGeometry()
     yr = (root_height_px*region.top);
     wr = (root_width_px*region.width*1);
     hr = (root_height_px*region.height*1);
+
+    if (rectangle_item.isNull())
+        return;
+
     rectangle_item.data()->setX(xr);
     rectangle_item.data()->setY(yr);
     rectangle_item.data()->setWidth(wr);
@@ -222,7 +227,7 @@ void TRegion::registerEventStarts()
 void TRegion::registerEventEnds()
 {
     last_touch = QDateTime::currentMSecsSinceEpoch();
-    if (count_touch < 2 && MyMedia != Q_NULLPTR)
+    if (count_touch < 2 && MyMedia != Q_NULLPTR && MyMedia->getSmilMedia() != Q_NULLPTR)
     {
         MyMedia->getSmilMedia()->emitActivated();
     }

@@ -46,7 +46,16 @@ void Audio::loadInternal()
     if (load(media_item.data()))
     {
         // to set Volume we need to cast
+        if (SmilMedia == Q_NULLPTR)
+            return;
+
         MediaParser::TAudio *MyAudio = qobject_cast<MediaParser::TAudio *> (SmilMedia);
+        if (MyAudio == Q_NULLPTR)
+        {
+            qWarning() << "Audio::loadInternal: SmilMedia is not a TAudio object or is invalid";
+            return;
+        }
+
         float vol = determineVolume(MyAudio->getSoundLevel());
         media_item.data()->setProperty("volume", vol);
     }
@@ -54,6 +63,9 @@ void Audio::loadInternal()
 
 void Audio::restart()
 {
+    if (SmilMedia == Q_NULLPTR || media_item.isNull())
+        return;
+
     if (!SmilMedia->getLogContentId().isEmpty())
         qInfo(PlayLog).noquote() << createPlayLogXml();
 
@@ -69,6 +81,9 @@ void Audio::restart()
 void Audio::play()
 {
     // todo add support for pauseDisplay
+   if (SmilMedia == Q_NULLPTR || media_item.isNull())
+        return;
+
    QMetaObject::invokeMethod(media_item.data(), "play");
    KillTimer->start(KILLTIMER_INTERVALL);
    if (SmilMedia->getLogContentId() != "")
@@ -80,6 +95,9 @@ void Audio::play()
 void Audio::stop()
 {
  //
+    if (SmilMedia == Q_NULLPTR || media_item.isNull())
+        return;
+
     if (!SmilMedia->getLogContentId().isEmpty())
         qInfo(PlayLog).noquote() << createPlayLogXml();
 
@@ -113,9 +131,11 @@ void Audio::pause()
     // video_item.data()->setVisible(false);
 
     KillTimer->stop();
-    if (!SmilMedia->getLogContentId().isEmpty())
+    if (SmilMedia != Q_NULLPTR && !SmilMedia->getLogContentId().isEmpty())
         qInfo(PlayLog).noquote() << createPlayLogXml();
-    QMetaObject::invokeMethod(media_item.data(), "stop");
+
+    if (!media_item.isNull())
+        QMetaObject::invokeMethod(media_item.data(), "stop");
     media_item.reset();
 }
 

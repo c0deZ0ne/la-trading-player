@@ -14,6 +14,7 @@ class PlayerBaseMedia : public QObject
         Q_OBJECT
     public:
         explicit PlayerBaseMedia(QQmlComponent *mc, QString r_id, Launcher *lc, MainConfiguration *config, QObject *parent = nullptr);
+        virtual ~PlayerBaseMedia() {}
         virtual void          loadMedia(BaseMedia *media, Region *reg)   = 0;
         virtual void          restart() = 0;
         virtual void          play()   = 0;

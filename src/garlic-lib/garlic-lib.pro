@@ -35,6 +35,7 @@ ios{
 
 android{
     message( "android compile" )
+    QT += androidextras
     DESTDIR = ../libandroid/
     LIBS += -L../libandroid
     equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 14) {

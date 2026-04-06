@@ -34,6 +34,7 @@
 #include "reports/play_logs_manager.h"
 #include "reports/inventory_report_manager.h"
 #include "smilparser/base.hpp"
+#include "tools/resource_monitor.h"
 /**
  * @brief The Region struct
  * All values are QString cause there could be a percent sign (%) in SMIL
@@ -61,7 +62,7 @@ class HeadParser: public QObject
 {
         Q_OBJECT
     public:
-        explicit HeadParser(MainConfiguration *config, Files::MediaManager *mm, DB::InventoryTable *it, SmilHead::PlaceHolder *ph, SystemInfos::DiscSpace *ds, QObject *parent = Q_NULLPTR);
+        explicit HeadParser(MainConfiguration *config, Files::MediaManager *mm, DB::InventoryTable *it, SmilHead::PlaceHolder *ph, SystemInfos::DiscSpace *ds, ResourceMonitor *rm, QObject *parent = Q_NULLPTR);
          ~HeadParser();
         void                   setDefaultValues();
         void                   parse(QDomElement head, SmilHead::TaskScheduler *MyTasks);
@@ -93,6 +94,7 @@ class HeadParser: public QObject
         MainConfiguration     *MyConfiguration;
         SmilHead::PlaceHolder *MyPlaceHolder;
         Files::MediaManager   *MyMediaManager;
+        ResourceMonitor       *MyResourceMonitor;
         void                   parseMeta(QDomElement element);
         void                   parseMetaData(QDomElement element, SmilHead::TaskScheduler *MyTasks);
         void                   parseLayout(QDomElement layout);

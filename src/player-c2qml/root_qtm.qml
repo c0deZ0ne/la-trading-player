@@ -7,40 +7,113 @@ Item
     id: root
     anchors.fill: parent
 
-    // VPN Status Indicator (Visual feedback for testing)
-    Rectangle {
-        id: vpnStatusIndicator
+    // Floating Settings Menu
+    Item {
+        id: floatingSettingsMenu
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 20
-        width: 44
-        height: 44
-        radius: 22
-        color: vpnConfig && vpnConfig.isEnabled ? "#00ff00" : "#ff4444"
-        opacity: vpnConfig && vpnConfig.isEnabled ? 0.8 : 0.4
-        border.color: "white"
-        border.width: 2
-        z: 9999 // Ensure it stays on top of media zones
+        width: 60
+        height: menuColumn.height + 80
+        z: 10000
 
-        Text {
-            anchors.centerIn: parent
-            text: "🛡️"
-            font.pixelSize: 24
+        property bool expanded: false
+
+        // Background for expanded menu
+        Rectangle {
+            id: menuBg
+            anchors.fill: parent
+            radius: 30
+            color: "#CC000000"
+            border.color: "#33FFFFFF"
+            border.width: 1
+            opacity: floatingSettingsMenu.expanded ? 1 : 0
+            visible: opacity > 0
+            
+            Behavior on opacity { NumberAnimation { duration: 250 } }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                console.log("VPN Indicator clicked, opening config...")
-                vpnLoader.source = "qrc:/VpnConfigDialog.qml"
+        Column {
+            id: menuColumn
+            anchors.bottom: fabButton.top
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottomMargin: 15
+            spacing: 15
+            visible: floatingSettingsMenu.expanded
+            opacity: floatingSettingsMenu.expanded ? 1 : 0
+            
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+
+            // Option 1: Player Configuration
+            Rectangle {
+                width: 44; height: 44; radius: 22
+                color: "#22FFFFFF"
+                Text { anchors.centerIn: parent; text: "⚙️"; font.pixelSize: 22 }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        floatingSettingsMenu.expanded = false;
+                        MainApp.openConfigDialog();
+                    }
+                }
+            }
+
+            // Option 2: Network Configuration
+            Rectangle {
+                id: networkBtn
+                width: 44; height: 44; radius: 22
+                color: "#22FFFFFF"
+                Text { anchors.centerIn: parent; text: "🌐"; font.pixelSize: 22 }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        floatingSettingsMenu.expanded = false;
+                        MainApp.openNetworkSettings();
+                    }
+                }
+            }
+
+            // Option 3: VPN Configuration
+            Rectangle {
+                width: 44; height: 44; radius: 22
+                color: vpnConfig && vpnConfig.isEnabled ? "#4400FF00" : "#22FFFFFF"
+                Text { anchors.centerIn: parent; text: "🛡️"; font.pixelSize: 22 }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        floatingSettingsMenu.expanded = false;
+                        vpnLoader.source = "qrc:/VpnConfigDialog.qml";
+                    }
+                }
             }
         }
 
-        SequentialAnimation on opacity {
-            running: vpnConfig && vpnConfig.isEnabled
-            loops: Animation.Infinite
-            NumberAnimation { from: 0.8; to: 0.4; duration: 1000; easing.type: Easing.InOutQuad }
-            NumberAnimation { from: 0.4; to: 0.8; duration: 1000; easing.type: Easing.InOutQuad }
+        // Main FAB Button
+        Rectangle {
+            id: fabButton
+            anchors.bottom: parent.bottom
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 56
+            height: 56
+            radius: 28
+            color: floatingSettingsMenu.expanded ? "#FF4444" : "#88000000"
+            border.color: "white"
+            border.width: 2
+            
+            Text {
+                anchors.centerIn: parent
+                text: floatingSettingsMenu.expanded ? "✕" : "⋮"
+                color: "white"
+                font.pixelSize: 24
+                font.bold: true
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: floatingSettingsMenu.expanded = !floatingSettingsMenu.expanded
+            }
+
+            Behavior on color { ColorAnimation { duration: 200 } }
         }
     }
 

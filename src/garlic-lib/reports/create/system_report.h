@@ -23,6 +23,7 @@
 
 #include "base_reports.h"
 #include "system_infos/network.h"
+#include "tools/resource_monitor.h"
 
 namespace Reporting
 {
@@ -32,6 +33,7 @@ namespace Reporting
         public:
             explicit CreateSystemReport(
                                   MainConfiguration *config,
+                                  ResourceMonitor *rm,
                                   QObject *parent = nullptr);
             void process();
         protected:
@@ -44,8 +46,10 @@ namespace Reporting
              void                  createUserPref();
              void                  createHardwareInfo();
              void                  createNetwork();
+             void                  createGpsInfo();
              void                  appendNetworkChilds();
              void                  appendNetworkAddressChilds();
+             ResourceMonitor       *MyResourceMonitor;
 
     };
 }

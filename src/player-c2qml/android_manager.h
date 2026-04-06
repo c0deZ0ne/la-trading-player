@@ -40,11 +40,13 @@ class AndroidManager : public QObject
 
         // VPN Integration
         QStringList generateVpnKeyPair();
-        void startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint);
+        void startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint, const QString &allowedIps);
         void stopVpnTunnel();
+        void openNetworkSettings();
 
     signals:
         void vpnStatusChanged(int status);
+        void vpnError(QString message);
 
     protected:
         QAndroidJniObject MyActivity;

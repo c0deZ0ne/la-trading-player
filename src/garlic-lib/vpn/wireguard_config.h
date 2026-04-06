@@ -8,6 +8,7 @@
 class WireguardConfig : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QString privateKey READ getPrivateKey WRITE setPrivateKey NOTIFY privateKeyChanged)
     Q_PROPERTY(QString publicKey READ getPublicKey WRITE setPublicKey NOTIFY publicKeyChanged)
     Q_PROPERTY(QString serverPublicKey READ getServerPublicKey WRITE setServerPublicKey NOTIFY serverPublicKeyChanged)
     Q_PROPERTY(QString serverEndpoint READ getServerEndpoint WRITE setServerEndpoint NOTIFY serverEndpointChanged)
@@ -15,6 +16,7 @@ class WireguardConfig : public QObject
     Q_PROPERTY(QString allowedIps READ getAllowedIps WRITE setAllowedIps NOTIFY allowedIpsChanged)
     Q_PROPERTY(bool isEnabled READ getIsEnabled WRITE setIsEnabled NOTIFY isEnabledChanged)
     Q_PROPERTY(int status READ getStatus NOTIFY statusChanged)
+    Q_PROPERTY(QString errorMessage READ getErrorMessage NOTIFY errorMessageChanged)
 
 public:
     explicit WireguardConfig(IMainConfiguration *mainConfig, QObject *parent = nullptr);
@@ -47,12 +49,16 @@ public:
     int getStatus() const;
     void setStatus(int status);
 
+    QString getErrorMessage() const;
+    void setErrorMessage(const QString &value);
+
     Q_INVOKABLE void copyToClipboard(const QString &text);
 
 public slots:
     void generateIdentity();
     void startVpn();
     void stopVpn();
+    void setVpnError(const QString &message);
 
 signals:
     void publicKeyChanged();
@@ -62,10 +68,12 @@ signals:
     void allowedIpsChanged();
     void isEnabledChanged();
     void statusChanged();
+    void privateKeyChanged();
+    void errorMessageChanged();
 
     // Requests to the main application (AndroidManager)
     void requestKeyGeneration();
-    void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint);
+    void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
 
 private:
@@ -78,6 +86,7 @@ private:
     QString m_allowedIps;
     bool m_isEnabled;
     int m_status;
+    QString m_errorMessage;
 };
 
 #endif // WIREGUARDCONFIG_H

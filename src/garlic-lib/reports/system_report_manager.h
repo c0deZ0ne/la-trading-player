@@ -3,6 +3,7 @@
 
 #include "base_report_manager.h"
 #include "create/system_report.h"
+#include "tools/resource_monitor.h"
 
 namespace Reporting
 {
@@ -10,7 +11,7 @@ namespace Reporting
     {
             Q_OBJECT
         public:
-            explicit SystemReportManager(MainConfiguration *config, SystemInfos::DiscSpace *ds, QObject *parent = nullptr);
+            explicit SystemReportManager(MainConfiguration *config, SystemInfos::DiscSpace *ds, ResourceMonitor *rm, QObject *parent = nullptr);
         protected:
 
             QScopedPointer<Reporting::CreateSystemReport> MyCreateSystemReport;

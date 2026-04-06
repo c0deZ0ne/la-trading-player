@@ -10,7 +10,7 @@
 
 #include <QDebug>
 
-#include "tools/configuration.h"
+#include "tools/main_configuration.hpp"
 
 namespace Ui
 {
@@ -24,11 +24,11 @@ class NetworkDialog : public QDialog
 {
         Q_OBJECT
     public:
-        explicit NetworkDialog(QWidget *parent, TConfiguration *Config);
+        explicit NetworkDialog(QWidget *parent, MainConfiguration *Config);
 
     protected:
         Ui::NetworkDialog *ui;
-        TConfiguration    *MyConfiguration = NULL;
+        MainConfiguration    *MyConfiguration = NULL;
         bool scanPossibleWiFiInterfaces(const QString interface);
         bool commitToSystem();
     protected slots:

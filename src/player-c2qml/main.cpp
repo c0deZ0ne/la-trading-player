@@ -113,8 +113,8 @@ int main(int argc, char *argv[])
         }
     });
 
-    QObject::connect(vpnConfig, &WireguardConfig::requestVpnStart, [MyAndroidManager](QString priv, QString addr, QString pub, QString endp) {
-        MyAndroidManager->startVpnTunnel(priv, addr, pub, endp);
+    QObject::connect(vpnConfig, &WireguardConfig::requestVpnStart, [MyAndroidManager](QString priv, QString addr, QString pub, QString endp, QString allowed) {
+        MyAndroidManager->startVpnTunnel(priv, addr, pub, endp, allowed);
     });
 
     QObject::connect(vpnConfig, &WireguardConfig::requestVpnStop, [MyAndroidManager]() {
@@ -124,6 +124,8 @@ int main(int argc, char *argv[])
     QObject::connect(MyAndroidManager, &AndroidManager::vpnStatusChanged, vpnConfig, [vpnConfig](int status) {
         vpnConfig->setStatus(status);
     });
+
+    QObject::connect(MyAndroidManager, &AndroidManager::vpnError, vpnConfig, &WireguardConfig::setVpnError);
 #endif
 
     MyPlayerConfiguration->printVersionInformation();
@@ -152,7 +154,14 @@ int main(int argc, char *argv[])
 
     QQmlEngine::setObjectOwnership(&w, QQmlEngine::CppOwnership);
 
-    if (MyMainConfiguration->getIndexUri().isEmpty() && w.openConfigDialog() == QDialog::Rejected)
+    // Show config dialog if:
+    // 1. Index URI is empty OR
+    // 2. No previous successful playback happened (fresh install) OR
+    // 3. Index URI is invalid
+    bool isFreshStart = MyMainConfiguration->getLastPlayedIndexPath().isEmpty();
+    bool isInvalidUri = MyMainConfiguration->getIndexUri().isEmpty() || !MyMainConfiguration->validateContentUrl(MyMainConfiguration->getIndexUri());
+
+    if ((isFreshStart || isInvalidUri) && w.openConfigDialog() == QDialog::Rejected)
     {
         return 0;
     }

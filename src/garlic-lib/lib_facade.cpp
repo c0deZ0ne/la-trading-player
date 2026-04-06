@@ -199,7 +199,7 @@ void LibFacade::initFileManager()
 
 void LibFacade::processHeadParsing()
 {
-    MyHeadParser.reset(new HeadParser(MyConfiguration.data(), MyMediaManager.data(), MyInventoryTable.data(), MyPlaceHolder.data(), MyDiscSpace.data(), this));
+    MyHeadParser.reset(new HeadParser(MyConfiguration.data(), MyMediaManager.data(), MyInventoryTable.data(), MyPlaceHolder.data(), MyDiscSpace.data(), &MyResourceMonitor, this));
     connect(MyHeadParser.data(), SIGNAL(parsingCompleted()), this, SLOT(processBodyParsing()));
 
     qDebug() <<  " begin head parsing" ;

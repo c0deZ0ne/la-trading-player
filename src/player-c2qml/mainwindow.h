@@ -35,7 +35,8 @@ class MainWindow : public QQuickView
         MainWindow(TScreen *screen, LibFacade *lib_facade, PlayerConfiguration *pc);
         ~MainWindow();
         void                      init();
-        int                       openConfigDialog();
+        Q_INVOKABLE int           openConfigDialog();
+        Q_INVOKABLE void          openNetworkSettings();
         void                      resizeAsNormalFullScreen();
         void                      resizeAsBigFullScreen();
         void                      resizeAsWindow();

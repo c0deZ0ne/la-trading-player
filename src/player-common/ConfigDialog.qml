@@ -18,10 +18,10 @@ Rectangle {
         opacity: 0.9
     }
 
-    property string deviceId: ""
-    property string playerName: ""
+    property string deviceId: MyConfig ? MyConfig.getUuid() : ""
+    property string playerName: MyConfig ? MyConfig.getPlayerName() : ""
     property string deviceIdPrefix: "BFD-"
-    property string playlistUrl: ""
+    property string playlistUrl: MyConfig ? MyConfig.getIndexUri() : ""
     property string errorMessage: ""
     property bool isConnecting: false
     property bool isSuccess: false
@@ -29,6 +29,14 @@ Rectangle {
 
     signal accepted()
     signal rejected()
+
+    Component.onCompleted: {
+        if (MyConfig) {
+            root.playerName = MyConfig.getPlayerName()
+            root.playlistUrl = MyConfig.getIndexUri()
+            root.deviceId = MyConfig.getUuid()
+        }
+    }
 
     // Improved Responsive Logic
     readonly property bool isMobile: Screen.primaryOrientation === Qt.PortraitOrientation || root.width < 600
@@ -40,6 +48,31 @@ Rectangle {
     readonly property real baseFontSize: isMobile ? 16 : 18
     readonly property real smallFontSize: baseFontSize * 0.8
     readonly property real fieldHeight: isMobile ? 60 : 65
+
+    states: [
+        State {
+            name: "input"
+            when: !root.isConnecting && !root.isSuccess
+            PropertyChanges { target: loadingOverlay; opacity: 0; visible: false }
+        },
+        State {
+            name: "connecting"
+            when: root.isConnecting && !root.isSuccess
+            PropertyChanges { target: loadingOverlay; opacity: 1; visible: true }
+        },
+        State {
+            name: "success"
+            when: root.isSuccess
+            PropertyChanges { target: loadingOverlay; opacity: 1; visible: true }
+        }
+    ]
+
+    transitions: [
+        Transition {
+            from: "*"; to: "*"
+            NumberAnimation { properties: "opacity"; duration: 250; easing.type: Easing.InOutQuad }
+        }
+    ]
 
     Rectangle {
         id: card
@@ -130,8 +163,6 @@ Rectangle {
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
-                                placeholderText: "Device Model - ID"
-                                placeholderTextColor: "#888888"
                                 
                                 background: Rectangle {
                                     color: "#252525"
@@ -171,9 +202,6 @@ Rectangle {
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
-                                placeholderText:"https://la-trading-api.onrender.com/api/v1/device-playlist/{deviceId}/xml"
-                                placeholderTextColor:"#888888"
-                                
                                 background: Rectangle {
                                     color: "#252525"
                                     radius: 8
@@ -280,7 +308,6 @@ Rectangle {
         id: loadingOverlay
         anchors.fill: parent
         color: "#aa000000"
-        visible: root.isConnecting || root.isSuccess
         z: 1000
 
         MouseArea { anchors.fill: parent } // Block interactions
