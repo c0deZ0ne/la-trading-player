@@ -523,7 +523,7 @@ Rectangle {
                             return;
                         }
 
-                        vpnRoot.backendConfig.setIsEnabled(true);
+                        vpnRoot.backendConfig.isEnabled = true;
                         vpnRoot.backendConfig.save();
                         vpnRoot.backendConfig.startVpn();
                         console.warn("[VpnConfig] backend.startVpn() called. Resulting status: " + vpnRoot.backendConfig.status)

@@ -278,23 +278,32 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             @Override
             public void run() {
                 showToast("VPN START SIGNAL RECEIVED");
-                Log.i("GarlicActivity", "Requesting VPN Start: " + endpoint + " with allowed IPs: " + allowedIps);
-                
-                // Notify UI immediately that we are "Connecting"
-                notifyVpnStateChanged(1);
-                
+                Log.i("GarlicActivity", "===> startVpn() reached. endpoint=" + endpoint + " address=" + address);
+
                 m_vpnPrivateKey = privateKey;
                 m_vpnAddress = address;
                 m_vpnServerPubKey = serverPubKey;
                 m_vpnEndpoint = endpoint;
                 m_vpnAllowedIps = allowedIps;
 
+                // Notify C++ layer that we are now Connecting (guarded against JNI link errors)
+                try {
+                    Log.i("GarlicActivity", "Calling notifyVpnStateChanged(1)...");
+                    notifyVpnStateChanged(1);
+                    Log.i("GarlicActivity", "notifyVpnStateChanged(1) succeeded.");
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e("GarlicActivity", "CRITICAL: notifyVpnStateChanged JNI not linked: " + e.getMessage());
+                } catch (Exception e) {
+                    Log.e("GarlicActivity", "CRITICAL: notifyVpnStateChanged threw: " + e.getMessage());
+                }
+
+                Log.i("GarlicActivity", "Calling VpnService.prepare()...");
                 Intent intent = VpnService.prepare(GarlicActivity.this);
                 if (intent != null) {
-                    Log.i("GarlicActivity", "VPN not prepared, starting activity for result");
-                    startActivityForResult(intent, 1024); // 1024 as request code
+                    Log.i("GarlicActivity", "VPN not prepared, starting activity for result (permission dialog)");
+                    startActivityForResult(intent, 1024);
                 } else {
-                    Log.i("GarlicActivity", "VPN already prepared, starting service");
+                    Log.i("GarlicActivity", "VPN already prepared, calling startVpnInternal()");
                     startVpnInternal();
                 }
             }
@@ -322,7 +331,11 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         
         Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
         
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 
     @Override
@@ -330,12 +343,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1024) {
             if (resultCode == RESULT_OK) {
-                Log.i("GarlicActivity", "VPN permission granted");
+                Log.i("GarlicActivity", "VPN permission GRANTED by user");
                 startVpnInternal();
             } else {
-                Log.e("GarlicActivity", "VPN permission denied");
-                notifyVpnError("VPN permission denied by user");
-                notifyVpnStateChanged(0); // Set back to disconnected
+                Log.e("GarlicActivity", "VPN permission DENIED by user");
+                try { notifyVpnError("VPN permission denied by user"); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnError JNI not linked"); }
+                try { notifyVpnStateChanged(0); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnStateChanged JNI not linked"); }
             }
         }
     }
@@ -345,7 +358,11 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         showToast("VPN STOP SIGNAL RECEIVED");
         Intent intent = new Intent(this, GarlicVpnService.class);
         intent.setAction("STOP");
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
     }
 
     public void openNetworkSettings() {

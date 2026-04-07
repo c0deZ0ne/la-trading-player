@@ -4,6 +4,10 @@ import android.content.Intent;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 
 import com.wireguard.android.backend.GoBackend;
 import com.wireguard.android.backend.Tunnel;
@@ -35,6 +39,7 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startForeground(1, createNotification());
         if (intent != null) {
             String action = intent.getAction();
             if ("START".equals(action)) {
@@ -45,6 +50,33 @@ public class GarlicVpnService extends VpnService implements Tunnel {
         }
         return START_STICKY;
     }
+
+    private Notification createNotification() {
+        String channelId = "vpn_channel";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                channelId,
+                "VPN Service",
+                NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+            return new Notification.Builder(this, channelId)
+                .setContentTitle("Garlic VPN")
+                .setContentText("VPN is running")
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .build();
+        } else {
+            return new Notification.Builder(this)
+                .setContentTitle("Garlic VPN")
+                .setContentText("VPN is running")
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .build();
+        }
+    }
+
 
     private void startVpn(Intent intent) {
         try {
