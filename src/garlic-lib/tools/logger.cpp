@@ -16,6 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "logger.h"
+#include "resource_monitor.h"
 
 Logger* Logger::instance= nullptr;
 std::once_flag Logger::initInstanceFlag;
@@ -39,6 +40,11 @@ Logger& Logger::getInstance()
 {
     std::call_once(initInstanceFlag, &Logger::initSingleton);
     return *instance;
+}
+
+void Logger::setResourceMonitor(ResourceMonitor *rm)
+{
+    MyResourceMonitor = rm;
 }
 
 void Logger::dispatchMessages(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -74,7 +80,11 @@ void Logger::dispatchMessages(QtMsgType type, const QMessageLogContext &context,
 
 QString Logger::createPlayLogEntry(QString start_time, QString content_id)
 {
-    return "<contentPlayed><contentId>"+content_id+"</contentId><startTime>"+start_time+"</startTime><endTime>" +getCurrentIsoDateTime()+"</endTime></contentPlayed>";
+    QString gps = "";
+    if (MyResourceMonitor != nullptr) {
+        gps = "<latitude>" + MyResourceMonitor->getLatitude() + "</latitude><longitude>" + MyResourceMonitor->getLongitude() + "</longitude>";
+    }
+    return "<contentPlayed><contentId>"+content_id+"</contentId><startTime>"+start_time+"</startTime><endTime>" +getCurrentIsoDateTime()+"</endTime>" + gps + "</contentPlayed>";
 }
 
 QString Logger::createTaskExecutionLogEntry(QString task_id, QString type)

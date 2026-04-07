@@ -30,6 +30,8 @@
 #include "log_file.h"
 #include "logging_categories.h"
 
+class ResourceMonitor;
+
 /**
  * @brief The Logger class
  * Thread-Safe C++11 Meyers' Singleton
@@ -39,6 +41,7 @@ class Logger : public QObject
         Q_OBJECT
     public:
         static   Logger&                  getInstance();
+                 void                     setResourceMonitor(ResourceMonitor *rm);
                  void                     dispatchMessages(QtMsgType type, const QMessageLogContext &context, const QString &msg);
                  QString                  createPlayLogEntry(QString start_time, QString content_id);
                  QString                  createTaskExecutionLogEntry(QString task_id, QString type);
@@ -46,6 +49,7 @@ class Logger : public QObject
                  void                     rotateLog(QString log_name);
                  QString                  getCurrentIsoDateTime();
     protected:
+                 ResourceMonitor          *MyResourceMonitor = nullptr;
                  QScopedPointer<LogFile>  qtdebug_log, debug_log, play_log, event_log, task_execution_log;
                  QString                  collectDebugLog(QtMsgType type, const QMessageLogContext &context, const QString &msg);
                  QString                  collectEventLog(QtMsgType type, const QMessageLogContext &context, const QString &meta_data);

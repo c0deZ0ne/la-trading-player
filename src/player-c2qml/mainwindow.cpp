@@ -71,7 +71,8 @@ void MainWindow::keyPressEvent(QKeyEvent *ke)
 //    if (ke->modifiers().testFlag(Qt::NoModifier))
     if (QGuiApplication::queryKeyboardModifiers() == Qt::NoModifier)
     {
-        MyLibFacade->transferAccessKey(ke->text().toLower().at(0));
+        if (!ke->text().isEmpty())
+            MyLibFacade->transferAccessKey(ke->text().toLower().at(0));
         return;
     }
 

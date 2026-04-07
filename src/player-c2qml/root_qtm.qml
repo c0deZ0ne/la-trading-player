@@ -100,6 +100,9 @@ Item
             border.color: "white"
             border.width: 2
             
+            // SECURITY: Only visible after gesture
+            visible: floatingSettingsMenu.expanded
+            
             Text {
                 anchors.centerIn: parent
                 text: floatingSettingsMenu.expanded ? "✕" : "⋮"
@@ -114,6 +117,17 @@ Item
             }
 
             Behavior on color { ColorAnimation { duration: 200 } }
+        }
+    }
+
+    // HIDDEN GESTURE TRIGGER (Bottom Left)
+    HiddenTrigger {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        z: 20000
+        onTriggered: {
+            console.warn("[Gesture] Menu Authorized")
+            floatingSettingsMenu.expanded = true
         }
     }
 

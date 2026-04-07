@@ -16,6 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "system_report.h"
+#ifdef Q_OS_ANDROID
+#include <QAndroidJniObject>
+#endif
 
 Reporting::CreateSystemReport::CreateSystemReport(MainConfiguration *config, ResourceMonitor *rm,
                            QObject *parent) : Reporting::CreateBase(config, parent)
@@ -72,15 +75,26 @@ void Reporting::CreateSystemReport::createConfiguration()
 
 void Reporting::CreateSystemReport::createModelInfo()
 {
+    QString pcb_revision = "";
+    QString manufacturer = "Sagiadinos";
+    QString model_description = "";
+    QString model_name = "";
+
+#ifdef Q_OS_ANDROID
+    pcb_revision = QAndroidJniObject::getStaticObjectField("android/os/Build", "HARDWARE", "Ljava/lang/String;").toString();
+    manufacturer = QAndroidJniObject::getStaticObjectField("android/os/Build", "MANUFACTURER", "Ljava/lang/String;").toString();
+    model_name = QAndroidJniObject::getStaticObjectField("android/os/Build", "MODEL", "Ljava/lang/String;").toString();
+#endif
+
     QDomElement model_info = document.createElement("modelInfo");
     configuration.appendChild(model_info);
     model_info.appendChild(createPropTag("PCB", MyConfiguration->getAppName()));
-    model_info.appendChild(createPropTag("PCBRevision", ""));
+    model_info.appendChild(createPropTag("PCBRevision", pcb_revision));
     model_info.appendChild(createPropTag("operatingSystem", MyConfiguration->getOS()));
-    model_info.appendChild(createPropTag("manufacturer", "Sagiadinos"));
+    model_info.appendChild(createPropTag("manufacturer", manufacturer));
     model_info.appendChild(createPropTag("manufacturerURL", "https://garlic-player.com"));
-    model_info.appendChild(createPropTag("modelDescription", ""));
-    model_info.appendChild(createPropTag("modelName", ""));
+    model_info.appendChild(createPropTag("modelDescription", model_description));
+    model_info.appendChild(createPropTag("modelName", model_name));
     model_info.appendChild(createPropTag("modelURL", ""));
     model_info.appendChild(createPropTag("option", ""));
 }
@@ -106,6 +120,18 @@ void Reporting::CreateSystemReport::createUserPref()
 
 void Reporting::CreateSystemReport::createHardwareInfo()
 {
+    QString hw_model_name = "";
+    QString product_id = "";
+    QString serial_number = "";
+    QString vendor_id = "";
+
+#ifdef Q_OS_ANDROID
+    hw_model_name = QAndroidJniObject::getStaticObjectField("android/os/Build", "MODEL", "Ljava/lang/String;").toString();
+    product_id = QAndroidJniObject::getStaticObjectField("android/os/Build", "PRODUCT", "Ljava/lang/String;").toString();
+    serial_number = QAndroidJniObject::getStaticObjectField("android/os/Build", "SERIAL", "Ljava/lang/String;").toString();
+    vendor_id = QAndroidJniObject::getStaticObjectField("android/os/Build", "BRAND", "Ljava/lang/String;").toString();
+#endif
+
     hardware_info = document.createElement("hardwareInfo");
     player.appendChild(hardware_info);
     QDomElement hardware = document.createElement("hardware");
@@ -113,10 +139,10 @@ void Reporting::CreateSystemReport::createHardwareInfo()
 
     // TODO integrate TScreen Class into lib
     hardware.setAttribute("id", "display:0");
-    hardware.appendChild(createPropTag("modelName", ""));
-    hardware.appendChild(createPropTag("product_id", ""));
-    hardware.appendChild(createPropTag("serialNumber", ""));
-    hardware.appendChild(createPropTag("vendorId", ""));
+    hardware.appendChild(createPropTag("modelName", hw_model_name));
+    hardware.appendChild(createPropTag("product_id", product_id));
+    hardware.appendChild(createPropTag("serialNumber", serial_number));
+    hardware.appendChild(createPropTag("vendorId", vendor_id));
 }
 
 

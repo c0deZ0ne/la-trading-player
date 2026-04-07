@@ -12,6 +12,8 @@
             <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
+        <category android:name="android.intent.category.HOME"/>
+        <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -84,14 +86,26 @@
             <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
         </intent-filter>
     </receiver>
+    <service android:name="com.sagiadinos.garlic.player.java.GarlicVpnService"
+             android:permission="android.permission.BIND_VPN_SERVICE"
+             android:exported="true">
+        <intent-filter>
+            <action android:name="android.net.VpnService"/>
+        </intent-filter>
+    </service>
     <!-- For adding service(s) please check: https://wiki.qt.io/AndroidServices -->
   </application>
   <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29"/>
 
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 	<uses-permission android:name="android.permission.WAKE_LOCK"/>
 	<uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 </manifest>

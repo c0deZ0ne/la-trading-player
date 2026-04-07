@@ -8,6 +8,8 @@ Rectangle {
     anchors.fill: parent
     color: "transparent"
 
+    property var backendConfig: vpnConfig // Initialize from global context if not passed explicitly
+
     // Background overlay for when loaded standalone
     Rectangle {
         anchors.fill: parent
@@ -18,11 +20,11 @@ Rectangle {
 
     // Map Backend Status to UI
     // Status codes: 0: Disconnected, 1: Connecting, 2: Connected, 3: Error
-    readonly property int vpnStatus: vpnConfig ? vpnConfig.status : 0
+    readonly property int vpnStatus: vpnRoot.backendConfig ? vpnRoot.backendConfig.status : 0
     readonly property bool isConnecting: vpnStatus === 1
     readonly property bool isConnected: vpnStatus === 2
     readonly property bool hasError: vpnStatus === 3
-    property string statusMessage: vpnConfig ? vpnConfig.errorMessage : "Backend Not Initialized"
+    property string statusMessage: vpnRoot.backendConfig ? vpnRoot.backendConfig.errorMessage : "Backend Not Initialized"
 
     signal saveConfig()
     signal cancel()
@@ -38,9 +40,9 @@ Rectangle {
     property bool showPrivateKey: false
 
     Component.onCompleted: {
-        console.log("[VpnConfig] Loaded. Backend vpnConfig valid:", !!vpnConfig)
-        if (vpnConfig) {
-            vpnConfig.load()
+        console.warn("[VpnConfig] Loaded. Backend reachable:", !!vpnRoot.backendConfig)
+        if (vpnRoot.backendConfig) {
+            vpnRoot.backendConfig.load()
         }
     }
 
@@ -59,7 +61,7 @@ Rectangle {
         radius: vpnRoot.cardRadius
         clip: true
 
-        // Header with Back Button
+        // Header with Back Button and Diagnostic Status Bar
         Rectangle {
             id: header
             width: parent.width
@@ -67,11 +69,37 @@ Rectangle {
             color: "transparent"
             z: 10
 
+            // BACKEND DIAGNOSTIC BAR
+            Rectangle {
+                id: diagBar
+                width: parent.width
+                height: 24
+                anchors.top: parent.top
+                color: vpnRoot.backendConfig ? "#0066ff" : "#ff0000"
+                opacity: 0.9
+                z: 20
+                
+                Text {
+                    text: vpnRoot.backendConfig ? "✓ SYSTEM ENGINE: READY" : "✕ SYSTEM ENGINE: DISCONNECTED"
+                    color: "white"
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                    anchors.centerIn: parent
+                }
+
+                // Flash Animation for touch verification
+                SequentialAnimation {
+                    id: clickFlash
+                    NumberAnimation { target: diagBar; property: "opacity"; from: 0.9; to: 0.2; duration: 50 }
+                    NumberAnimation { target: diagBar; property: "opacity"; from: 0.2; to: 0.9; duration: 50 }
+                }
+            }
+
             Button {
                 id: backBtn
                 anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.margins: 10
+                anchors.top: diagBar.bottom
+                anchors.margins: 5
                 width: 44
                 height: 44
                 contentItem: Text {
@@ -82,14 +110,20 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Item {}
-                onClicked: vpnRoot.cancel()
+                onClicked: {
+                    clickFlash.start()
+                    console.warn("[VpnConfig] BACK clicked")
+                    vpnRoot.cancel()
+                }
             }
 
             Text {
                 text: "SECURE VPN SETUP"
-                anchors.centerIn: parent
+                anchors.top: diagBar.bottom
+                anchors.topMargin: 20
+                anchors.horizontalCenter: parent.horizontalCenter
                 color: "white"
-                font.pixelSize: vpnRoot.baseFontSize
+                font.pixelSize: 22
                 font.weight: Font.Bold
             }
         }
@@ -130,15 +164,15 @@ Rectangle {
                         placeholderText: "Pasted Private Key here..."
                         background: vpnFieldBg("DEVICE PRIVATE KEY", privateKeyInput.activeFocus)
                         onTextEdited: {
-                            if (vpnConfig) {
-                                vpnConfig.privateKey = text
-                                if (vpnRoot.hasError) vpnConfig.setStatus(0)
+                            if (vpnRoot.backendConfig) {
+                                vpnRoot.backendConfig.privateKey = text
+                                if (vpnRoot.hasError) vpnRoot.backendConfig.setStatus(0)
                             }
                         }
                         onEditingFinished: {
-                             if (vpnConfig) {
-                                 vpnConfig.privateKey = text
-                                 vpnConfig.save()
+                             if (vpnRoot.backendConfig) {
+                                 vpnRoot.backendConfig.privateKey = text
+                                 vpnRoot.backendConfig.save()
                              }
                         }
 
@@ -188,9 +222,9 @@ Rectangle {
                         placeholderText: "Corresponding Public Key..."
                         background: vpnFieldBg("DEVICE PUBLIC KEY (SHARE WITH CMS)", publicKeyInput.activeFocus)
                         onEditingFinished: {
-                             if (vpnConfig) {
-                                 vpnConfig.publicKey = text
-                                 vpnConfig.save()
+                             if (vpnRoot.backendConfig) {
+                                 vpnRoot.backendConfig.publicKey = text
+                                 vpnRoot.backendConfig.save()
                              }
                         }
 
@@ -205,9 +239,9 @@ Rectangle {
                             background: Item {}
                             onClicked: {
                                 publicKeyInput.text = ""
-                                if (vpnConfig) {
-                                    vpnConfig.publicKey = ""
-                                    vpnConfig.save()
+                                if (vpnRoot.backendConfig) {
+                                    vpnRoot.backendConfig.publicKey = ""
+                                    vpnRoot.backendConfig.save()
                                 }
                             }
                         }
@@ -231,8 +265,8 @@ Rectangle {
                             }
                             background: Rectangle { color: "#ffff00"; radius: 4 }
                             onClicked: {
-                                if (vpnConfig) {
-                                    vpnConfig.copyToClipboard(vpnConfig.publicKey)
+                                if (vpnRoot.backendConfig) {
+                                    vpnRoot.backendConfig.copyToClipboard(vpnRoot.backendConfig.publicKey)
                                     copyBtn.text = "COPIED!"
                                     copyTimer.start()
                                 }
@@ -254,7 +288,7 @@ Rectangle {
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle { color: "#444444"; radius: 4 }
-                            onClicked: if (vpnConfig) vpnConfig.generateIdentity()
+                            onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.generateIdentity()
                         }
                     }
                 }
@@ -466,32 +500,33 @@ Rectangle {
                         radius: 8
                     }
                     onClicked: {
-                        console.log("[VpnConfig] Connect clicked. vpnConfig valid:", !!vpnConfig)
-                        if (!vpnConfig) {
+                        clickFlash.start()
+                        console.warn("[VpnConfig] SAVE & CONNECT clicked. Backend valid: " + (!!vpnRoot.backendConfig))
+                        if (!vpnRoot.backendConfig) {
                              statusMessage = "Error: VPN Backend missing. Please restart app."
                              return;
                         }
 
-                        console.log("[VpnConfig] Attempting start with: Endpoint=" + serverIpInput.text + " ClientIP=" + virtualIpInput.text + " Allowed=" + allowedIpsInput.text)
+                        console.warn("[VpnConfig] Attempting start with: Endpoint=" + serverIpInput.text + " ClientIP=" + virtualIpInput.text + " Allowed=" + allowedIpsInput.text)
 
                         // Instant UI Validation
                         if (privateKeyInput.text === "" || serverKeyInput.text === "" || serverIpInput.text === "" || virtualIpInput.text === "") {
-                            vpnConfig.setErrorMessage("Please fill all required keys and server fields.");
-                            vpnConfig.setStatus(3); // Error
+                            vpnRoot.backendConfig.setErrorMessage("Please fill all required keys and server fields.");
+                            vpnRoot.backendConfig.setStatus(3); // Error
                             return;
                         }
 
                         // Character Length Validation (WireGuard keys are typically 44 chars)
                         if (privateKeyInput.text.length < 40 || serverKeyInput.text.length < 40) {
-                            vpnConfig.setErrorMessage("Invalid Key Format. Keys must be standard Base64 (approx 44 chars).");
-                            vpnConfig.setStatus(3); 
+                            vpnRoot.backendConfig.setErrorMessage("Invalid Key Format. Keys must be standard Base64 (approx 44 chars).");
+                            vpnRoot.backendConfig.setStatus(3); 
                             return;
                         }
 
-                        vpnConfig.setIsEnabled(true);
-                        vpnConfig.save();
-                        vpnConfig.startVpn();
-                        console.log("[VpnConfig] vpnConfig.startVpn() called. Current status: " + vpnConfig.status)
+                        vpnRoot.backendConfig.setIsEnabled(true);
+                        vpnRoot.backendConfig.save();
+                        vpnRoot.backendConfig.startVpn();
+                        console.warn("[VpnConfig] backend.startVpn() called. Resulting status: " + vpnRoot.backendConfig.status)
                     }
                 }
 
@@ -517,6 +552,7 @@ Rectangle {
         anchors.fill: vpnCard
         color: "#1e1e1e"
         visible: vpnRoot.isConnecting || vpnRoot.isConnected || (vpnRoot.hasError && vpnRoot.statusMessage !== "")
+        enabled: visible
         z: 100
 
         ColumnLayout {

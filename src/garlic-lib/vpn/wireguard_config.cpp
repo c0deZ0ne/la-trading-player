@@ -137,8 +137,11 @@ void WireguardConfig::generateIdentity()
 
 void WireguardConfig::startVpn()
 {
+    qCritical() << "[Wireguard][BACKEND] startVpn() EXECUTING - Target:" << m_serverEndpoint;
     setErrorMessage("");
+    m_status = 0; // Force reset to trigger refresh
     setStatus(1); // Connecting
+    
     emit requestVpnStart(m_privateKey, m_virtualIp, m_serverPublicKey, m_serverEndpoint, m_allowedIps);
 }
 

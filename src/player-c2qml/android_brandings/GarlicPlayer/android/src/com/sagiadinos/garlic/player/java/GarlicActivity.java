@@ -19,13 +19,18 @@
 package com.sagiadinos.garlic.player.java;
 
 import android.content.Context;
+import android.os.Build;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.graphics.Color;
 import android.os.Environment;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.VpnService;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.ContentResolver;
-import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -35,6 +40,8 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.util.Log;
 import java.util.concurrent.ExecutionException;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 
 
 public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity
@@ -45,12 +52,21 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
 
     public GarlicActivity()
     {
+        Log.d("GarlicActivity", "Constructor called");
         m_instance = this;
+    }
+
+    public static GarlicActivity getInstance() {
+        if (m_instance == null) {
+            Log.e("GarlicActivity", "getInstance() called but m_instance is NULL!");
+        }
+        return m_instance;
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        m_instance = this;
         super.onCreate(savedInstanceState);
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -84,6 +100,57 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         {
             is_launcher = true;
             MyLauncherInterface = new PhilipsLauncher(this);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            ComponentName adminName = new ComponentName(this, AdminReceiver.class);
+
+            Log.d("GarlicActivity", "Checking Device Owner status...");
+            if (dpm.isDeviceOwnerApp(getPackageName())) {
+                Log.d("GarlicActivity", "App IS Device Owner. Whitelisting package for Lock Task...");
+                dpm.setLockTaskPackages(adminName, new String[]{getPackageName()});
+                if (dpm.isLockTaskPermitted(getPackageName())) {
+                    Log.d("GarlicActivity", "Lock Task IS permitted. Starting Lock Task...");
+                    startLockTask();
+                } else {
+                    Log.d("GarlicActivity", "Lock Task IS NOT permitted for this package.");
+                }
+            } else {
+                Log.d("GarlicActivity", "App IS NOT Device Owner.");
+            }
+        }
+
+        hideSystemUI();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            hideSystemUI();
+        }
+    }
+
+    private void hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Window window = getWindow();
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.setStatusBarColor(Color.TRANSPARENT);
+            window.setNavigationBarColor(Color.TRANSPARENT);
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
         }
     }
 
@@ -200,4 +267,94 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         return true;
     }
 
+    private String m_vpnPrivateKey;
+    private String m_vpnAddress;
+    private String m_vpnServerPubKey;
+    private String m_vpnEndpoint;
+    private String m_vpnAllowedIps;
+
+    public void startVpn(final String privateKey, final String address, final String serverPubKey, final String endpoint, final String allowedIps) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                showToast("VPN START SIGNAL RECEIVED");
+                Log.i("GarlicActivity", "Requesting VPN Start: " + endpoint + " with allowed IPs: " + allowedIps);
+                
+                // Notify UI immediately that we are "Connecting"
+                notifyVpnStateChanged(1);
+                
+                m_vpnPrivateKey = privateKey;
+                m_vpnAddress = address;
+                m_vpnServerPubKey = serverPubKey;
+                m_vpnEndpoint = endpoint;
+                m_vpnAllowedIps = allowedIps;
+
+                Intent intent = VpnService.prepare(GarlicActivity.this);
+                if (intent != null) {
+                    Log.i("GarlicActivity", "VPN not prepared, starting activity for result");
+                    startActivityForResult(intent, 1024); // 1024 as request code
+                } else {
+                    Log.i("GarlicActivity", "VPN already prepared, starting service");
+                    startVpnInternal();
+                }
+            }
+        });
+    }
+
+    private void showToast(final String message) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                android.widget.Toast.makeText(GarlicActivity.this, message, android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void startVpnInternal() {
+        Log.d("GarlicActivity", "startVpnInternal: Prepared Intent for service. Action=START");
+        Intent intent = new Intent(this, GarlicVpnService.class);
+        intent.setAction("START");
+        intent.putExtra("privateKey", m_vpnPrivateKey);
+        intent.putExtra("address", m_vpnAddress);
+        intent.putExtra("serverPubKey", m_vpnServerPubKey);
+        intent.putExtra("endpoint", m_vpnEndpoint);
+        intent.putExtra("allowedIps", m_vpnAllowedIps);
+        
+        Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
+        
+        startService(intent);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1024) {
+            if (resultCode == RESULT_OK) {
+                Log.i("GarlicActivity", "VPN permission granted");
+                startVpnInternal();
+            } else {
+                Log.e("GarlicActivity", "VPN permission denied");
+                notifyVpnError("VPN permission denied by user");
+                notifyVpnStateChanged(0); // Set back to disconnected
+            }
+        }
+    }
+
+    public void stopVpn() {
+        Log.i("GarlicActivity", "Requesting VPN Stop");
+        showToast("VPN STOP SIGNAL RECEIVED");
+        Intent intent = new Intent(this, GarlicVpnService.class);
+        intent.setAction("STOP");
+        startService(intent);
+    }
+
+    public void openNetworkSettings() {
+        Log.i("GarlicActivity", "Opening Network Settings");
+        Intent intent = new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+    }
+
+    public static native void notifyVpnStateChanged(int state);
+    public static native void notifyVpnError(String message);
 }

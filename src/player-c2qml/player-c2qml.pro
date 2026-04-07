@@ -124,16 +124,7 @@ HEADERS  += \
 RESOURCES += qml.qrc
 
 DISTFILES += \
-    android/src/com/sagiadinos/garlic/player/java/ConfigReceiver.java \
-    android/src/com/sagiadinos/garlic/player/java/GarlicActivity.java \
-    android/src/com/sagiadinos/garlic/player/java/GarlicLauncher.java \
-    android/src/com/sagiadinos/garlic/player/java/LauncherInterface.java \
-    android/src/com/sagiadinos/garlic/player/java/PhilipsLauncher.java \
-    android/src/com/sagiadinos/garlic/player/java/SICPDef.java \
-    android/src/com/sagiadinos/garlic/player/java/SmilIndexReceiver.java \
-    android/src/com/sagiadinos/garlic/player/java/BootReceiver.java \
-    android/src/com/sagiadinos/garlic/player/java/SocketClient.java \
-    android/src/com/sagiadinos/garlic/player/java/GarlicVpnService.java \
+    android_brandings/GarlicPlayer/android/AndroidManifest.xml \
     android_brandings/GarlicPlayer/android/build.gradle \
     android_brandings/GarlicPlayer/android/gradle.properties \
     android_brandings/GarlicPlayer/android/gradle/wrapper/gradle-wrapper.jar \

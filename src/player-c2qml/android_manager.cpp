@@ -20,33 +20,18 @@
 
 AndroidManager* AndroidManager::m_instance = nullptr;
 
-AndroidManager::AndroidManager()
-{
-    m_instance = this;
-    MyActivity = QAndroidJniObject::callStaticObjectMethod("org/qtproject/qt5/android/QtNative", "activity", "()Landroid/app/Activity;");
-    MyActivity.callMethod<void>("registerBroadcastReceiver");
-}
-
-AndroidManager* AndroidManager::instance()
-{
-    return m_instance;
-}
-
-// JNI Bridge
-extern "C" JNIEXPORT void JNICALL
-Java_com_sagiadinos_garlic_player_java_GarlicActivity_notifyVpnStateChanged(JNIEnv *env, jclass clazz, jint state)
+static void notifyVpnStateChanged(JNIEnv *env, jobject obj, jint state)
 {
     Q_UNUSED(env);
-    Q_UNUSED(clazz);
+    Q_UNUSED(obj);
     if (AndroidManager::instance()) {
         emit AndroidManager::instance()->vpnStatusChanged(state);
     }
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_sagiadinos_garlic_player_java_GarlicActivity_notifyVpnError(JNIEnv *env, jclass clazz, jstring message)
+static void notifyVpnError(JNIEnv *env, jobject obj, jstring message)
 {
-    Q_UNUSED(clazz);
+    Q_UNUSED(obj);
     const char *msgChars = env->GetStringUTFChars(message, nullptr);
     QString msg = QString::fromUtf8(msgChars);
     env->ReleaseStringUTFChars(message, msgChars);
@@ -55,6 +40,38 @@ Java_com_sagiadinos_garlic_player_java_GarlicActivity_notifyVpnError(JNIEnv *env
         emit AndroidManager::instance()->vpnError(msg);
     }
 }
+
+AndroidManager::AndroidManager()
+{
+    m_instance = this;
+    MyActivity = QAndroidJniObject::callStaticObjectMethod("org/qtproject/qt5/android/QtNative", "activity", "()Landroid/app/Activity;");
+    
+    // Dynamic JNI Registration
+    QAndroidJniEnvironment env;
+    jclass clazz = env->FindClass("com/sagiadinos/garlic/player/java/GarlicActivity");
+    if (clazz) {
+        JNINativeMethod methods[] = {
+            {(char*)"notifyVpnStateChanged", (char*)"(I)V", (void *)&notifyVpnStateChanged},
+            {(char*)"notifyVpnError", (char*)"(Ljava/lang/String;)V", (void *)&notifyVpnError}
+        };
+        if (env->RegisterNatives(clazz, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
+            qCritical() << "[JNI] FAILED to register native methods for GarlicActivity!";
+        } else {
+            qDebug() << "[JNI] Native methods registered successfully for GarlicActivity.";
+        }
+    } else {
+        qCritical() << "[JNI] Could NOT find class GarlicActivity for registration!";
+    }
+
+    MyActivity.callMethod<void>("registerBroadcastReceiver");
+}
+
+AndroidManager* AndroidManager::instance()
+{
+    return m_instance;
+}
+
+// No JNI bridge needed here. Moved above constructor.
 
 bool AndroidManager::hasLauncher()
 {
@@ -184,9 +201,16 @@ QStringList AndroidManager::generateVpnKeyPair()
 
 void AndroidManager::startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint, const QString &allowedIps)
 {
+    qDebug() << "[Wireguard][CPP] AndroidManager::startVpnTunnel() called";
     QtAndroid::runOnAndroidThread([privateKey, address, serverPubKey, endpoint, allowedIps]() {
-        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("org/qtproject/qt5/android/QtNative", "activity", "()Landroid/app/Activity;");
-        if (!MyActivity.isValid()) return;
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/sagiadinos/garlic/player/java/GarlicActivity", "getInstance", "()Lcom/sagiadinos/garlic/player/java/GarlicActivity;");
+        
+        if (!MyActivity.isValid()) {
+            qCritical() << "[Wireguard][CPP] FAILED to get GarlicActivity instance via getInstance()!";
+            return;
+        } else {
+            qDebug() << "[Wireguard][CPP] Successfully obtained GarlicActivity instance.";
+        }
 
         QAndroidJniObject jPrivateKey = QAndroidJniObject::fromString(privateKey);
         QAndroidJniObject jAddress = QAndroidJniObject::fromString(address);
@@ -205,14 +229,23 @@ void AndroidManager::startVpnTunnel(const QString &privateKey, const QString &ad
 
 void AndroidManager::stopVpnTunnel()
 {
-    if (!MyActivity.isValid()) return;
-    MyActivity.callMethod<void>("stopVpn");
+    qDebug() << "[Wireguard][CPP] AndroidManager::stopVpnTunnel() called";
+    QtAndroid::runOnAndroidThread([]() {
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/sagiadinos/garlic/player/java/GarlicActivity", "getInstance", "()Lcom/sagiadinos/garlic/player/java/GarlicActivity;");
+        if (MyActivity.isValid()) {
+            MyActivity.callMethod<void>("stopVpn");
+        }
+    });
 }
 
 void AndroidManager::openNetworkSettings()
 {
 #if defined Q_OS_ANDROID
-    if (!MyActivity.isValid()) return;
-    MyActivity.callMethod<void>("openNetworkSettings");
+    QtAndroid::runOnAndroidThread([]() {
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/sagiadinos/garlic/player/java/GarlicActivity", "getInstance", "()Lcom/sagiadinos/garlic/player/java/GarlicActivity;");
+        if (MyActivity.isValid()) {
+            MyActivity.callMethod<void>("openNetworkSettings");
+        }
+    });
 #endif
 }

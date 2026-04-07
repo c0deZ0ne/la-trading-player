@@ -4,5 +4,6 @@
         <file>images/logo-la.png</file>
         <file alias="ConfigDialog.qml">ConfigDialog.qml</file>
         <file alias="VpnConfigDialog.qml">VpnConfigDialog.qml</file>
+        <file alias="HiddenTrigger.qml">HiddenTrigger.qml</file>
     </qresource>
 </RCC>

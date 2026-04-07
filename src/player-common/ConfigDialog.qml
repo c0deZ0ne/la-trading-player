@@ -278,7 +278,7 @@ Rectangle {
                                 border.color: "#444444"
                             }
                             onClicked: {
-                                var vpnDialog = stackView.push("VpnConfigDialog.qml")
+                                var vpnDialog = stackView.push("VpnConfigDialog.qml", {"backendConfig": vpnConfig})
                                 vpnDialog.cancel.connect(function() { stackView.pop() })
                             }
                         }

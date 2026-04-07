@@ -21,12 +21,14 @@
 #include <QNetworkProxyQuery>
 #include <QUrl>
 #include <QDebug>
+#include "logger.h"
 
 LibFacade::LibFacade(QObject *parent) : QObject(parent)
 {
     MyDiscSpace.reset(new SystemInfos::DiscSpace(&MyStorage));
     MyResourceMonitor.setDiscSpace(MyDiscSpace.data());
     MyFreeDiscSpace.reset(new FreeDiscSpace(MyDiscSpace.data()));
+    Logger::getInstance().setResourceMonitor(&MyResourceMonitor);
 
     QNetworkProxyFactory::setUseSystemConfiguration(true);
     QNetworkProxyQuery npq(QUrl(QLatin1String("http://www.google.com")));

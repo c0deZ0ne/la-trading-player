@@ -66,7 +66,7 @@ find . -name "Makefile*" -exec touch {} +
 echo 
 echo ========== build 
 echo 
-"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS QMAKE="echo skipping qmake" 2>&1 | tee build_log.txt
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS 2>&1 | tee build_log.txt
 BUILD_EXIT=${PIPESTATUS[0]}
 if [ $BUILD_EXIT -ne 0 ]; then
     echo "ERROR: make failed with exit code $BUILD_EXIT. Check build_log.txt for details."
@@ -94,7 +94,7 @@ echo ========== pack apk with gradle
 echo 
 rm -rf $BUILD_TARGET
 find . -name "Makefile*" -exec touch {} +
-"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" QMAKE="echo skipping qmake" INSTALL_ROOT=$BUILD_TARGET install
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" INSTALL_ROOT=$BUILD_TARGET install
 
 # Verify deployment settings exist
 if [ ! -f "./player-c2qml/android-la-player-deployment-settings.json" ]; then
@@ -119,6 +119,7 @@ if [ ! -f "./player-c2qml/$BUILD_TARGET/gradlew" ]; then
 fi
 
 cd ./player-c2qml/$BUILD_TARGET
+./gradlew -Dhttps.protocols=TLSv1.2 clean
 ./gradlew -Dhttps.protocols=TLSv1.2 assemble${CONFIG_DEBUG_RELEASE^} --build-cache --parallel --daemon
 cd ../..
 

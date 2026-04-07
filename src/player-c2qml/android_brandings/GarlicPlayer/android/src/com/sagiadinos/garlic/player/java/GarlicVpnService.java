@@ -11,21 +11,25 @@ import com.wireguard.config.Config;
 import com.wireguard.config.Interface;
 import com.wireguard.config.Peer;
 import com.wireguard.crypto.Key;
+import com.wireguard.crypto.KeyPair;
 
 import java.net.InetAddress;
 import java.util.Collections;
 
 public class GarlicVpnService extends VpnService implements Tunnel {
     private static final String TAG = "GarlicVpnService";
-    private static GoBackend backend;
+    private GoBackend backend;
     private static GarlicVpnService instance;
 
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
-        if (backend == null) {
+        try {
             backend = new GoBackend(this);
+            Log.i(TAG, "VPN Service Created and GoBackend initialized successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "FAILED to initialize GoBackend: " + e.getMessage());
         }
     }
 
@@ -44,27 +48,78 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
     private void startVpn(Intent intent) {
         try {
+            Log.i(TAG, "VPN Start Command Received");
             String privateKey = intent.getStringExtra("privateKey");
-            String address = intent.getStringExtra("address"); // e.g. 10.8.0.2/32
+            String address = intent.getStringExtra("address");
             String serverPubKey = intent.getStringExtra("serverPubKey");
-            String endpoint = intent.getStringExtra("endpoint"); // e.g. 1.2.3.4:51820
+            String endpoint = intent.getStringExtra("endpoint");
+            String allowedIps = intent.getStringExtra("allowedIps");
+
+            Log.d(TAG, "Config: server=" + endpoint + ", addresses=" + address + ", allowed=" + allowedIps);
+
+            if (privateKey == null || privateKey.isEmpty()) throw new Exception("PrivateKey is NULL/Empty");
+            if (serverPubKey == null || serverPubKey.isEmpty()) throw new Exception("ServerPubKey is NULL/Empty");
+            if (address == null || address.isEmpty()) throw new Exception("Client Address is NULL/Empty");
+            if (endpoint == null || endpoint.isEmpty()) throw new Exception("Endpoint is NULL/Empty");
+
+            if (allowedIps == null || allowedIps.isEmpty()) {
+                Log.w(TAG, "No AllowedIPs provided, using 0.0.0.0/0");
+                allowedIps = "0.0.0.0/0";
+            }
+
+            Interface.Builder interfaceBuilder = new Interface.Builder();
+            try {
+                // In version 1.0.20211029, we use KeyPair to set the private key
+                interfaceBuilder.setKeyPair(new KeyPair(Key.fromBase64(privateKey)));
+            } catch (Exception e) {
+                throw new Exception("Invalid Private Key format: " + e.getMessage());
+            }
+            
+            String[] addressArray = address.split(",");
+            for (String addr : addressArray) {
+                String trimmedAddr = addr.trim();
+                if (!trimmedAddr.contains("/")) trimmedAddr += "/32";
+                Log.d(TAG, "Parsing local address: " + trimmedAddr);
+                try {
+                    interfaceBuilder.addAddress(com.wireguard.config.InetNetwork.parse(trimmedAddr));
+                } catch (Exception e) {
+                    throw new Exception("Local Address parse error [" + trimmedAddr + "]: " + e.getMessage());
+                }
+            }
+
+            Peer.Builder peerBuilder = new Peer.Builder();
+            try {
+                peerBuilder.setEndpoint(com.wireguard.config.InetEndpoint.parse(endpoint));
+                peerBuilder.setPublicKey(Key.fromBase64(serverPubKey));
+            } catch (Exception e) {
+                throw new Exception("Endpoint or ServerPubKey error: " + e.getMessage());
+            }
+
+            String[] allowedIpsArray = allowedIps.split(",");
+            for (String allowed : allowedIpsArray) {
+                String trimmedAllowed = allowed.trim();
+                Log.d(TAG, "Parsing allowed IP: " + trimmedAllowed);
+                try {
+                    peerBuilder.addAllowedIp(com.wireguard.config.InetNetwork.parse(trimmedAllowed));
+                } catch (Exception e) {
+                    throw new Exception("Allowed IP parse error [" + trimmedAllowed + "]: " + e.getMessage());
+                }
+            }
 
             Config config = new Config.Builder()
-                .setInterface(new Interface.Builder()
-                    .parseAddresses(address)
-                    .parsePrivateKey(privateKey)
-                    .build())
-                .addPeer(new Peer.Builder()
-                    .parseAllowedIPs("0.0.0.0/0")
-                    .parseEndpoint(endpoint)
-                    .parsePublicKey(serverPubKey)
-                    .build())
+                .setInterface(interfaceBuilder.build())
+                .addPeer(peerBuilder.build())
                 .build();
 
+            Log.i(TAG, "Applying WireGuard configuration via GoBackend...");
             backend.setState(this, Tunnel.State.UP, config);
-            Log.i(TAG, "VPN Tunnel Started successfully");
+            Log.i(TAG, "GoBackend.setState(UP) called successfully");
+
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start VPN", e);
+            String msg = "VPN Failure: " + e.getMessage();
+            Log.e(TAG, msg);
+            GarlicActivity.notifyVpnError(msg);
+            GarlicActivity.notifyVpnStateChanged(0);
         }
     }
 
@@ -85,8 +140,19 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
     @Override
     public void onStateChange(State newState) {
-        Log.d(TAG, "VPN State changed to: " + newState);
-        // We could notify C++ here via JNI if needed
+        // Status codes matching QML expectations:
+        // 0 = Disconnected/DOWN
+        // 1 = Connecting/TOGGLING
+        // 2 = Connected/UP
+        // 3 = Error (sent via notifyVpnError)
+        int status;
+        if (newState == State.UP) {
+            status = 2; // Connected
+        } else {
+            status = 0; // Disconnected
+        }
+        Log.i(TAG, "VPN State changed to: " + newState + " -> status code: " + status);
+        GarlicActivity.notifyVpnStateChanged(status);
     }
 
     // --- Helper Methods for JNI ---
@@ -97,7 +163,7 @@ public class GarlicVpnService extends VpnService implements Tunnel {
      */
     public static String[] generateKeyPair() {
         try {
-            com.wireguard.crypto.KeyPair keyPair = new com.wireguard.crypto.KeyPair();
+            KeyPair keyPair = new KeyPair();
             return new String[]{keyPair.getPrivateKey().toBase64(), keyPair.getPublicKey().toBase64()};
         } catch (Exception e) {
             Log.e(TAG, "Key generation failed", e);

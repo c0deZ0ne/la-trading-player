@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
     });
 
     QObject::connect(vpnConfig, &WireguardConfig::requestVpnStart, [MyAndroidManager](QString priv, QString addr, QString pub, QString endp, QString allowed) {
+        qDebug() << "[Wireguard][CPP] main.cpp: requestVpnStart intercepted";
         MyAndroidManager->startVpnTunnel(priv, addr, pub, endp, allowed);
     });
 

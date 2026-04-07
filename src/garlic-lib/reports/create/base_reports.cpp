@@ -70,12 +70,35 @@ void Reporting::CreateBase::createSystemInfo()
     system_info.appendChild(createTagWithTextValue("totalCapacity", QString::number(MyDiscSpace->getBytesTotal())));
     system_info.appendChild(createTagWithTextValue("totalFreeSpace", QString::number(MyDiscSpace->getBytesFree())));
 
-    system_info.appendChild(createTagWithTextValue("cpuUsage", ""));
+    QString cpu_usage = "";
+    QString hdmi_output = "";
+#ifdef Q_OS_ANDROID
+    QFile file("/sys/class/switch/hdmi/state");
+    if(file.open(QIODevice::ReadOnly)) {
+        QTextStream in(&file);
+        QString state = in.readLine().trimmed();
+        if(state == "1") hdmi_output = "connected";
+        else if(state == "0") hdmi_output = "disconnected";
+        file.close();
+    } else {
+        // Fallback for different kernel paths
+        QFile file_drm("/sys/class/drm/card0-HDMI-A-1/status");
+        if (file_drm.open(QIODevice::ReadOnly)) {
+            QTextStream in(&file_drm);
+            QString state = in.readLine().trimmed();
+            if(state.contains("connected")) hdmi_output = "connected";
+            else hdmi_output = "disconnected";
+            file_drm.close();
+        }
+    }
+#endif
+
+    system_info.appendChild(createTagWithTextValue("cpuUsage", cpu_usage));
 
     MyMemory->refresh();
     system_info.appendChild(createTagWithTextValue("memoryTotal", QString::number(MyMemory->getTotal())));
     system_info.appendChild(createTagWithTextValue("memoryUsed", QString::number(MyMemory->getUsed())));
-    system_info.appendChild(createTagWithTextValue("hdmiOutput", ""));
+    system_info.appendChild(createTagWithTextValue("hdmiOutput", hdmi_output));
 
 }
 
