@@ -45,9 +45,21 @@ linux:!android {
 android {
     QT        += androidextras webview
     DISTFILES += \
-       android_brandings/GarlicPlayer/android/AndroidManifest.xml
+       android_brandings/GarlicPlayer/android/AndroidManifest.xml \
+       android_brandings/LAPlayer/android/AndroidManifest.xml
 
-    ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android_brandings/GarlicPlayer/android/
+    isEmpty(BRANDING): BRANDING = GarlicPlayer
+
+    contains(BRANDING, GarlicPlayer) {
+        ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android_brandings/GarlicPlayer/android/
+        DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicActivity\\\"
+        DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicVpnService\\\"
+    }
+    contains(BRANDING, LAPlayer) {
+        ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android_brandings/LAPlayer/android/
+        DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/laplayer/player/java/GarlicActivity\\\"
+        DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/laplayer/player/java/GarlicVpnService\\\"
+    }
 
     # release build crashs when start debugging
     # see https://github.com/KDAB/android_openssl/issues/10
@@ -124,11 +136,11 @@ HEADERS  += \
 RESOURCES += qml.qrc
 
 DISTFILES += \
-    android_brandings/GarlicPlayer/android/AndroidManifest.xml \
-    android_brandings/GarlicPlayer/android/build.gradle \
-    android_brandings/GarlicPlayer/android/gradle.properties \
-    android_brandings/GarlicPlayer/android/gradle/wrapper/gradle-wrapper.jar \
-    android_brandings/GarlicPlayer/android/gradle/wrapper/gradle-wrapper.properties \
-    android_brandings/GarlicPlayer/android/gradlew \
-    android_brandings/GarlicPlayer/android/gradlew.bat \
-    android_brandings/GarlicPlayer/android/res/values/libs.xml
+    $$ANDROID_PACKAGE_SOURCE_DIR/AndroidManifest.xml \
+    $$ANDROID_PACKAGE_SOURCE_DIR/build.gradle \
+    $$ANDROID_PACKAGE_SOURCE_DIR/gradle.properties \
+    $$ANDROID_PACKAGE_SOURCE_DIR/gradle/wrapper/gradle-wrapper.jar \
+    $$ANDROID_PACKAGE_SOURCE_DIR/gradle/wrapper/gradle-wrapper.properties \
+    $$ANDROID_PACKAGE_SOURCE_DIR/gradlew \
+    $$ANDROID_PACKAGE_SOURCE_DIR/gradlew.bat \
+    $$ANDROID_PACKAGE_SOURCE_DIR/res/values/libs.xml

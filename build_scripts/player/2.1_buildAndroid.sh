@@ -60,7 +60,7 @@ cd $BUILD_DIR
 echo 
 echo ========== prepare build 
 echo 
-$QT_PATH_RUNTIME/bin/qmake -r -spec $QT_MKSPEC "$GARLIC_DIR/src/complete_c2qml.pro" CONFIG+=$CONFIG_DEBUG_RELEASE CONFIG+=qml_$CONFIG_DEBUG_RELEASE CONFIG+=android ANDROID_ABIS="armeabi-v7a arm64-v8a"
+$QT_PATH_RUNTIME/bin/qmake -r -spec $QT_MKSPEC "$GARLIC_DIR/src/complete_c2qml.pro" BRANDING=$BRANDING CONFIG+=$CONFIG_DEBUG_RELEASE CONFIG+=qml_$CONFIG_DEBUG_RELEASE CONFIG+=android ANDROID_ABIS="armeabi-v7a arm64-v8a"
 find . -name "Makefile*" -exec touch {} +
 
 echo 

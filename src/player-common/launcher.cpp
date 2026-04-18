@@ -12,7 +12,7 @@ void Launcher::rebootOS(QString task_id)
 
 #if defined  Q_OS_ANDROID
     QAndroidJniObject java_task_id = QAndroidJniObject::fromString(task_id);
-    QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity",
+    QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH,
                                               "rebootOS",
                                               "(Ljava/lang/String;)V",
                                               java_task_id.object<jstring>()
@@ -26,7 +26,7 @@ void Launcher::installSoftware(QString file_path)
         return;
 #if defined  Q_OS_ANDROID
    QAndroidJniObject java_file_path = QAndroidJniObject::fromString(file_path);
-   QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity",
+   QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH,
                                               "installSoftware",
                                               "(Ljava/lang/String;)V",
                                               java_file_path.object<jstring>());
@@ -41,11 +41,11 @@ void Launcher::toggleScreenActivity(bool is_on)
 #if defined  Q_OS_ANDROID
     if (is_on)
     {
-        QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity", "setScreenOn");
+        QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH, "setScreenOn");
     }
     else
     {
-        QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity", "setScreenOff");
+        QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH, "setScreenOff");
     }
 #elif defined Q_OS_LINUX
     QProcess process;
@@ -76,7 +76,7 @@ void Launcher::activateDeepStandby(QString wakeup)
 
 #if defined  Q_OS_ANDROID
     QAndroidJniObject seconds_to_wakeup = QAndroidJniObject::fromString(wakeup);
-    QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity",
+    QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH,
                                               "activateDeepStandBy",
                                               "(Ljava/lang/String;)V",
                                               seconds_to_wakeup.object<jstring>());
@@ -95,7 +95,7 @@ void Launcher::sendClosePlayerCorrect()
         return;
 
 #if defined  Q_OS_ANDROID
-    QAndroidJniObject::callStaticMethod<void>("com/sagiadinos/garlic/player/java/GarlicActivity", "closePlayerCorrect");
+    QAndroidJniObject::callStaticMethod<void>(ANDROID_ACTIVITY_PATH, "closePlayerCorrect");
 #endif
 }
 

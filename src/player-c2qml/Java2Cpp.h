@@ -46,6 +46,15 @@ JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_ConfigReceiver_get
     GlobalLibfacede->setConfigFromExternal(str);
 
 }
+
+JNIEXPORT void JNICALL Java_com_laplayer_player_java_ConfigReceiver_getConfigPath(
+        JNIEnv *env /*env*/,
+        jobject /*this_obj*/,
+        jstring path)
+{
+    Java_com_sagiadinos_garlic_player_java_ConfigReceiver_getConfigPath(env, NULL, path);
+}
+
 // needed when you have local index on usb for
 JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_getSmilIndexPath(
         JNIEnv *env /*env*/,
@@ -54,6 +63,14 @@ JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_
 {
     QString str(env->GetStringUTFChars(path, NULL));
     GlobalLibfacede->reloadWithNewIndex(str);
+}
+
+JNIEXPORT void JNICALL Java_com_laplayer_player_java_SmilIndexReceiver_getSmilIndexPath(
+        JNIEnv *env /*env*/,
+        jobject /*this_obj*/,
+        jstring path)
+{
+    Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_getSmilIndexPath(env, NULL, path);
 }
 
 
