@@ -42,6 +42,8 @@ namespace SystemInfos
 
             QString getType();
             QString getIP();
+            QString getVpnIP();
+            QString getPhysicalIP();
             QString getNetMask();
             QString getBroadcast();
         protected:

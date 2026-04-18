@@ -67,6 +67,7 @@ class HeadParser: public QObject
         void                   setDefaultValues();
         void                   parse(QDomElement head, SmilHead::TaskScheduler *MyTasks);
         int                    getRefreshTime(){return refresh;}
+        void                   forceSystemReport();
         QString                getRootBackgroundColor();
         QString                getTitle();
         QList<Region>         *getLayout();

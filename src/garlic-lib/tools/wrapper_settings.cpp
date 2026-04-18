@@ -30,6 +30,7 @@ QString WrapperSettings::value(const QString &key) const
 void WrapperSettings::setValue(const QString &key, const QVariant &value)
 {
     MySettings->setValue(key, value);
+    MySettings->sync();
 }
 
 QSettings *WrapperSettings::getOriginal() const

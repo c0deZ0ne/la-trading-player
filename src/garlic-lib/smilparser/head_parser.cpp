@@ -329,5 +329,13 @@ bool HeadParser::isMediaLoadable(QString src)
     return false;
 }
 
+void HeadParser::forceSystemReport()
+{
+    if (!MySystemReportManager.isNull())
+    {
+        MySystemReportManager.data()->handleSend();
+    }
+}
+
 
 

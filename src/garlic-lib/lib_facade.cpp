@@ -312,3 +312,11 @@ void LibFacade::emitPauseShowMedia(BaseMedia *media)
     emit pauseShowMedia(media);
     qDebug() << "emitPauseShowMedia " << media->getID();
 }
+
+void LibFacade::forceSystemReport()
+{
+    if (!MyHeadParser.isNull())
+    {
+        MyHeadParser.data()->forceSystemReport();
+    }
+}

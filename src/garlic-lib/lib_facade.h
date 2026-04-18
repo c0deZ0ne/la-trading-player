@@ -80,6 +80,7 @@ class LibFacade : public QObject
         void               reboot(QString task_id);
         void               applyCommand(QString task_id, QString command);
         void               takeScreenshot(QString file_path);
+        void               forceSystemReport();
     protected:
         int               resource_monitor_timer_id;
         bool              has_launcher = false;

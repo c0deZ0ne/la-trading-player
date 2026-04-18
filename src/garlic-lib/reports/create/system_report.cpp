@@ -35,6 +35,7 @@ void Reporting::CreateSystemReport::process()
     createSystemInfo();
     createGpsInfo();
     createNetwork();
+    createVpnInfo();
     createConfiguration();
     createModelInfo();
     createFactoryDefault();
@@ -46,13 +47,59 @@ void Reporting::CreateSystemReport::createNetwork()
 {
     network = document.createElement("network");
     system_info.appendChild(network);
+    
+    // Pass 1: Physical Interfaces (WiFi/Ethernet) - prioritize these for lastKnownIp
     MyNetwork->resetInterface();
     for(int i = 0; i < MyNetwork->countInterfaces(); i++)
     {
-        if (MyNetwork->isRealInterface())
+        QString name = MyNetwork->getInterfaceId().toLower();
+        // Match the logic used in getPhysicalIP()
+        bool isPhysical = name.contains("wlan") || name.contains("eth") || name.contains("p2p") || 
+                          (!MyNetwork->getMac().isEmpty() && !name.contains("tun") && !name.contains("wg"));
+
+        if (isPhysical && MyNetwork->isRealInterface()) {
             appendNetworkChilds();
+        }
 
         MyNetwork->nextInterface();
+    }
+
+    // Pass 2: VPN/Virtual Interfaces
+    MyNetwork->resetInterface();
+    for(int i = 0; i < MyNetwork->countInterfaces(); i++)
+    {
+        QString name = MyNetwork->getInterfaceId().toLower();
+        // Match the logic used in getVpnIP()
+        bool isVpn = name.contains("tun") || name.contains("wg") || name.contains("ppp") || 
+                     (MyNetwork->getMac().isEmpty());
+
+        if (isVpn && MyNetwork->isRealInterface()) {
+            // Safety check: ensure we don't double-report physical interfaces
+            bool wasPhysical = name.contains("wlan") || name.contains("eth") || name.contains("p2p");
+            if (!wasPhysical) {
+                appendNetworkChilds();
+            }
+        }
+
+        MyNetwork->nextInterface();
+    }
+}
+
+void Reporting::CreateSystemReport::createVpnInfo()
+{
+    QString vpn_ip = MyNetwork->getVpnIP();
+    QString physical_ip = MyNetwork->getPhysicalIP();
+
+    qDebug() << "[Wireguard][REPORT] Preparing System Report...";
+    qDebug() << "[Wireguard][REPORT] Physical IP:" << (physical_ip.isEmpty() ? "none" : physical_ip);
+    qDebug() << "[Wireguard][REPORT] VPN IP:" << (vpn_ip.isEmpty() ? "none" : vpn_ip);
+
+    // Hijack the standard 'ipAddress' tag with the VPN IP
+    // We leave 'vpnIp' as a property only to avoid 500 errors
+    if (!vpn_ip.isEmpty()) {
+        system_info.appendChild(createTagWithTextValue("ipAddress", vpn_ip));
+    } else {
+        system_info.appendChild(createTagWithTextValue("ipAddress", physical_ip));
     }
 }
 

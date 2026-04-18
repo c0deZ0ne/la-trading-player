@@ -129,6 +129,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             hideSystemUI();
+            startKioskMode(); // Auto-resume kiosk mode when regaining focus from Settings
         }
     }
 
@@ -365,8 +366,33 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         }
     }
 
+    public void stopKioskMode() {
+        Log.i("GarlicActivity", "Stopping Kiosk Mode (Lock Task)...");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                stopLockTask();
+            } catch (Exception e) {
+                Log.e("GarlicActivity", "Failed to stop lock task", e);
+            }
+        }
+    }
+
+    public void startKioskMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                if (dpm != null && dpm.isLockTaskPermitted(getPackageName())) {
+                    startLockTask();
+                }
+            } catch (Exception e) {
+                Log.e("GarlicActivity", "Failed to start lock task", e);
+            }
+        }
+    }
+
     public void openNetworkSettings() {
-        Log.i("GarlicActivity", "Opening Network Settings");
+        Log.i("GarlicActivity", "Opening Network Settings - Suspending Kiosk Mode");
+        stopKioskMode();
         Intent intent = new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);

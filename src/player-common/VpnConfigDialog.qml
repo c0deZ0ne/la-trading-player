@@ -511,15 +511,15 @@ Rectangle {
 
                         // Instant UI Validation
                         if (privateKeyInput.text === "" || serverKeyInput.text === "" || serverIpInput.text === "" || virtualIpInput.text === "") {
-                            vpnRoot.backendConfig.setErrorMessage("Please fill all required keys and server fields.");
-                            vpnRoot.backendConfig.setStatus(3); // Error
+                            vpnRoot.backendConfig.errorMessage = "Please fill all required keys and server fields.";
+                            vpnRoot.backendConfig.status = 3; // Error
                             return;
                         }
 
                         // Character Length Validation (WireGuard keys are typically 44 chars)
                         if (privateKeyInput.text.length < 40 || serverKeyInput.text.length < 40) {
-                            vpnRoot.backendConfig.setErrorMessage("Invalid Key Format. Keys must be standard Base64 (approx 44 chars).");
-                            vpnRoot.backendConfig.setStatus(3); 
+                            vpnRoot.backendConfig.errorMessage = "Invalid Key Format. Keys must be standard Base64 (approx 44 chars).";
+                            vpnRoot.backendConfig.status = 3; 
                             return;
                         }
 
@@ -600,7 +600,7 @@ Rectangle {
 
             Text {
                 text: vpnRoot.hasError ? vpnRoot.statusMessage : 
-                      (vpnRoot.isConnected ? "All traffic is now routed through your VPC." : "Please wait while we perform the WireGuard handshake.")
+                      (vpnRoot.isConnected ? "All traffic is now routed through your VPC." : "Please wait while we perform the server handshake.")
                 color: "#888888"
                 font.pixelSize: vpnRoot.smallFontSize
                 Layout.fillWidth: true

@@ -249,3 +249,27 @@ void AndroidManager::openNetworkSettings()
     });
 #endif
 }
+
+void AndroidManager::startKioskMode()
+{
+#if defined Q_OS_ANDROID
+    QtAndroid::runOnAndroidThread([]() {
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/sagiadinos/garlic/player/java/GarlicActivity", "getInstance", "()Lcom/sagiadinos/garlic/player/java/GarlicActivity;");
+        if (MyActivity.isValid()) {
+            MyActivity.callMethod<void>("startKioskMode");
+        }
+    });
+#endif
+}
+
+void AndroidManager::exitKioskMode()
+{
+#if defined Q_OS_ANDROID
+    QtAndroid::runOnAndroidThread([]() {
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/sagiadinos/garlic/player/java/GarlicActivity", "getInstance", "()Lcom/sagiadinos/garlic/player/java/GarlicActivity;");
+        if (MyActivity.isValid()) {
+            MyActivity.callMethod<void>("stopKioskMode");
+        }
+    });
+#endif
+}

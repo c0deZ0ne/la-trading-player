@@ -16,7 +16,7 @@ class WireguardConfig : public QObject
     Q_PROPERTY(QString allowedIps READ getAllowedIps WRITE setAllowedIps NOTIFY allowedIpsChanged)
     Q_PROPERTY(bool isEnabled READ getIsEnabled WRITE setIsEnabled NOTIFY isEnabledChanged)
     Q_PROPERTY(int status READ getStatus NOTIFY statusChanged)
-    Q_PROPERTY(QString errorMessage READ getErrorMessage NOTIFY errorMessageChanged)
+    Q_PROPERTY(QString errorMessage READ getErrorMessage WRITE setErrorMessage NOTIFY errorMessageChanged)
 
 public:
     explicit WireguardConfig(IMainConfiguration *mainConfig, QObject *parent = nullptr);
@@ -24,23 +24,23 @@ public:
     Q_INVOKABLE void load();
     Q_INVOKABLE void save();
 
-    QString getPublicKey() const;
-    void setPublicKey(const QString &value);
+    Q_INVOKABLE QString getPublicKey() const;
+    Q_INVOKABLE void setPublicKey(const QString &value);
 
-    QString getServerPublicKey() const;
-    void setServerPublicKey(const QString &value);
+    Q_INVOKABLE QString getServerPublicKey() const;
+    Q_INVOKABLE void setServerPublicKey(const QString &value);
 
-    QString getServerEndpoint() const;
-    void setServerEndpoint(const QString &value);
+    Q_INVOKABLE QString getServerEndpoint() const;
+    Q_INVOKABLE void setServerEndpoint(const QString &value);
 
-    QString getVirtualIp() const;
-    void setVirtualIp(const QString &value);
+    Q_INVOKABLE QString getVirtualIp() const;
+    Q_INVOKABLE void setVirtualIp(const QString &value);
 
-    QString getAllowedIps() const;
-    void setAllowedIps(const QString &value);
+    Q_INVOKABLE QString getAllowedIps() const;
+    Q_INVOKABLE void setAllowedIps(const QString &value);
 
-    bool getIsEnabled() const;
-    void setIsEnabled(bool value);
+    Q_INVOKABLE bool getIsEnabled() const;
+    Q_INVOKABLE void setIsEnabled(bool value);
 
     // Secure handling of private key (not a Q_PROPERTY)
     QString getPrivateKey() const;
@@ -50,7 +50,7 @@ public:
     void setStatus(int status);
 
     QString getErrorMessage() const;
-    void setErrorMessage(const QString &value);
+    Q_INVOKABLE void setErrorMessage(const QString &value);
 
     Q_INVOKABLE void copyToClipboard(const QString &text);
 
@@ -75,6 +75,7 @@ signals:
     void requestKeyGeneration();
     void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
+    void requestSystemReport();
 
 private:
     IMainConfiguration *m_mainConfig;

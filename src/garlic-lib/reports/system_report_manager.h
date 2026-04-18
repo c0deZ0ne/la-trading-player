@@ -12,10 +12,9 @@ namespace Reporting
             Q_OBJECT
         public:
             explicit SystemReportManager(MainConfiguration *config, SystemInfos::DiscSpace *ds, ResourceMonitor *rm, QObject *parent = nullptr);
-        protected:
-
-            QScopedPointer<Reporting::CreateSystemReport> MyCreateSystemReport;
             void             handleSend();
+        protected:
+            QScopedPointer<Reporting::CreateSystemReport> MyCreateSystemReport;
         protected slots:
            void               doSucceed(TNetworkAccess *uploader);
            void               doFailed(TNetworkAccess *uploader);

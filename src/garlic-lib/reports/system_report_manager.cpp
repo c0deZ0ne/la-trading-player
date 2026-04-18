@@ -26,7 +26,9 @@ Reporting::SystemReportManager::SystemReportManager(MainConfiguration *config, S
 void Reporting::SystemReportManager::handleSend()
 {
     MyCreateSystemReport.data()->process();
-    MyWebDav.data()->processPutData(action_url, MyCreateSystemReport.data()->asXMLString().toUtf8());
+    QString xmlData = MyCreateSystemReport.data()->asXMLString();
+    qDebug() << "[Wireguard][REPORT] Full XML Payload:\n" << xmlData;
+    MyWebDav.data()->processPutData(action_url, xmlData.toUtf8());
 }
 
 void Reporting::SystemReportManager::doSucceed(TNetworkAccess *uploader)

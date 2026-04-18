@@ -46,6 +46,7 @@ namespace Reporting
              void                  createUserPref();
              void                  createHardwareInfo();
              void                  createNetwork();
+             void                  createVpnInfo();
              void                  createGpsInfo();
              void                  appendNetworkChilds();
              void                  appendNetworkAddressChilds();

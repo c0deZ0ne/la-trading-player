@@ -52,7 +52,11 @@ bool SystemInfos::Network::resetAddress()
 
 bool SystemInfos::Network::isRealInterface()
 {
-    if (!current_interface.isValid() || current_interface.addressEntries().size() == 0 || getMac().isEmpty())
+    if (!current_interface.isValid() || current_interface.addressEntries().size() == 0)
+        return false;
+
+    // Use a robust check: if it has an IP and is NOT a loopback, we want to report it.
+    if (getType() == "loopback")
         return false;
 
     return true;
@@ -130,6 +134,75 @@ QString SystemInfos::Network::getType()
 QString SystemInfos::Network::getIP()
 {
     return current_address.ip().toString();
+}
+
+QString SystemInfos::Network::getVpnIP()
+{
+    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface &interface : interfaces) {
+        if (interface.flags().testFlag(QNetworkInterface::IsLoopBack))
+            continue;
+
+        QString name = interface.name().toLower();
+        // VPNs typically have "tun", "wg", "ppp" or are virtual without a MAC
+        bool isVpn = name.contains("tun") || name.contains("wg") || name.contains("ppp") || 
+                     (interface.type() == QNetworkInterface::Virtual && interface.hardwareAddress().isEmpty());
+
+        if (isVpn) {
+            QList<QNetworkAddressEntry> entries = interface.addressEntries();
+            for (const QNetworkAddressEntry &entry : entries) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                    qDebug() << "[Wireguard][DETECT] Found VPN Interface:" << interface.name() << "IP:" << entry.ip().toString();
+                    return entry.ip().toString();
+                }
+            }
+        }
+    }
+
+    // Pass 2 Fallback: If no "named" VPN found, look for any active non-loopback interface that is NOT the physical one
+    QString physical_ip = getPhysicalIP();
+    for (const QNetworkInterface &interface : interfaces) {
+        if (interface.flags().testFlag(QNetworkInterface::IsLoopBack) || !interface.flags().testFlag(QNetworkInterface::IsUp))
+            continue;
+
+        QList<QNetworkAddressEntry> entries = interface.addressEntries();
+        for (const QNetworkAddressEntry &entry : entries) {
+            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                QString ip = entry.ip().toString();
+                if (ip != physical_ip && !ip.isEmpty()) {
+                    qDebug() << "[Wireguard][DETECT] Found Fallback VPN Interface:" << interface.name() << "IP:" << ip;
+                    return ip;
+                }
+            }
+        }
+    }
+
+    return "";
+}
+
+QString SystemInfos::Network::getPhysicalIP()
+{
+    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface &interface : interfaces) {
+        if (interface.flags().testFlag(QNetworkInterface::IsLoopBack))
+            continue;
+
+        QString name = interface.name().toLower();
+        // Physical interfaces typically have "wlan", "eth", "p2p" etc and usually have a MAC
+        bool isPhysical = name.contains("wlan") || name.contains("eth") || name.contains("p2p") || 
+                          (!interface.hardwareAddress().isEmpty() && !name.contains("tun") && !name.contains("wg"));
+
+        if (isPhysical) {
+            QList<QNetworkAddressEntry> entries = interface.addressEntries();
+            for (const QNetworkAddressEntry &entry : entries) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                    qDebug() << "[Wireguard][DETECT] Found Physical Interface:" << interface.name() << "IP:" << entry.ip().toString();
+                    return entry.ip().toString();
+                }
+            }
+        }
+    }
+    return "";
 }
 
 QString SystemInfos::Network::getNetMask()

@@ -43,6 +43,10 @@ class AndroidManager : public QObject
         void startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint, const QString &allowedIps);
         void stopVpnTunnel();
         void openNetworkSettings();
+        
+        // Kiosk Mode escape hatch
+        void startKioskMode();
+        void exitKioskMode();
 
     signals:
         void vpnStatusChanged(int status);

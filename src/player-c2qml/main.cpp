@@ -17,6 +17,8 @@
 *************************************************************************************/
 #include <QQmlApplicationEngine>
 #include "wrapper_settings.hpp"
+#include <QTimer>
+#include "vpn/wireguard_config.h"
 #include "qdialog.h"
 #include "tools/logger.h"
 #include "../player-common/cmdparser.h"
@@ -24,6 +26,7 @@
 #include "../player-common/player_configuration.h"
 
 #if defined  Q_OS_ANDROID
+    #include <android/log.h>
     #include "Java2Cpp.h"
     #include "android_manager.h"
 #endif
@@ -36,6 +39,18 @@ void handleMessages(QtMsgType type, const QMessageLogContext &context, const QSt
 {
     Logger& MyLogger = Logger::getInstance();
     MyLogger.dispatchMessages(type, context, msg);
+
+#if defined Q_OS_ANDROID
+    android_LogPriority priority = ANDROID_LOG_DEBUG;
+    switch (type) {
+        case QtDebugMsg: priority = ANDROID_LOG_DEBUG; break;
+        case QtInfoMsg: priority = ANDROID_LOG_INFO; break;
+        case QtWarningMsg: priority = ANDROID_LOG_WARN; break;
+        case QtCriticalMsg: priority = ANDROID_LOG_ERROR; break;
+        case QtFatalMsg: priority = ANDROID_LOG_FATAL; break;
+    }
+    __android_log_print(priority, "GarlicPlayer", "%s", msg.toLocal8Bit().constData());
+#endif
 }
 
 int main(int argc, char *argv[])
@@ -127,11 +142,26 @@ int main(int argc, char *argv[])
     });
 
     QObject::connect(MyAndroidManager, &AndroidManager::vpnError, vpnConfig, &WireguardConfig::setVpnError);
+
+    QObject::connect(vpnConfig, &WireguardConfig::requestSystemReport, [MyLibFacade]() {
+        qDebug() << "[Wireguard][REPORT] VPN Connected. Triggering immediate system report...";
+        MyLibFacade->forceSystemReport();
+    });
+    
+    // Auto-start VPN if enabled (Non-blocking)
+    if (vpnConfig->getIsEnabled()) {
+        qDebug() << "[Wireguard][AUTOSTART] VPN is enabled, scheduled to start in 2s...";
+        QTimer::singleShot(2000, vpnConfig, [vpnConfig]() {
+            qDebug() << "[Wireguard][AUTOSTART] Triggering delayed VPN start...";
+            vpnConfig->startVpn();
+        });
+    }
 #endif
 
     MyPlayerConfiguration->printVersionInformation();
 
     qmlRegisterType<LibFacade>("com.garlic.LibFacade", 1, 0, "LibFacade");
+    qmlRegisterUncreatableType<WireguardConfig>("com.garlic.vpn", 1, 0, "WireguardConfig", "Accessed via LibFacade");
 
     TCmdParser MyParser(MyMainConfiguration);
     MyParser.addOptions();
