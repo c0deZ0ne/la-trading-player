@@ -6,8 +6,8 @@
   <!-- The following comment will be replaced upon deployment with default features based on the dependencies of the application.
          Remove the comment if you do not require these default features. -->
   <!-- %%INSERT_FEATURES -->
-  <supports-screens android:usesCleartextTraffic="true" android:largeScreens="true" android:normalScreens="true" android:anyDensity="true" android:smallScreens="true"/>
-  <application android:allowBackup="false" android:fullBackupContent="false" android:forceDarkAllowed="false" android:hardwareAccelerated="true" android:name="org.qtproject.qt5.android.bindings.QtApplication" android:label="LA Player" android:extractNativeLibs="true" android:icon="@drawable/icon" android:requestLegacyExternalStorage="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+  <supports-screens android:largeScreens="true" android:normalScreens="true" android:anyDensity="true" android:smallScreens="true"/>
+  <application android:usesCleartextTraffic="true" android:allowBackup="false" android:fullBackupContent="false" android:forceDarkAllowed="false" android:hardwareAccelerated="true" android:name="org.qtproject.qt5.android.bindings.QtApplication" android:label="LA Player" android:extractNativeLibs="true" android:icon="@drawable/icon" android:requestLegacyExternalStorage="true" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
     <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:name="com.laplayer.player.java.GarlicActivity" android:label="LA Player" android:screenOrientation="unspecified" android:launchMode="singleTop" android:windowLayoutInDisplayCutoutMode="shortEdges">
             <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

@@ -150,8 +150,8 @@ int main(int argc, char *argv[])
     
     // Auto-start VPN if enabled (Non-blocking)
     if (vpnConfig->getIsEnabled()) {
-        qDebug() << "[Wireguard][AUTOSTART] VPN is enabled, scheduled to start in 2s...";
-        QTimer::singleShot(2000, vpnConfig, [vpnConfig]() {
+        qDebug() << "[Wireguard][AUTOSTART] VPN is enabled, scheduled to start in 5s...";
+        QTimer::singleShot(5000, vpnConfig, [vpnConfig]() {
             qDebug() << "[Wireguard][AUTOSTART] Triggering delayed VPN start...";
             vpnConfig->startVpn();
         });

@@ -2,6 +2,8 @@ package com.laplayer.player.java;
 
 import android.content.Intent;
 import android.net.VpnService;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -49,6 +51,10 @@ public class GarlicVpnService extends VpnService implements Tunnel {
             } else if ("STOP".equals(action)) {
                 stopVpn();
             }
+        } else {
+            // START_STICKY replay after OS killed the service — no config available,
+            // do nothing and let the C++ layer re-initiate when it detects status=DOWN.
+            Log.w(TAG, "onStartCommand: null intent (START_STICKY replay). Ignoring — C++ layer will retry.");
         }
         return START_STICKY;
     }
@@ -211,11 +217,38 @@ public class GarlicVpnService extends VpnService implements Tunnel {
                                 "Timeout: No handshake response from VPN Server after 30 seconds. Verify that Server Public Key is correct and that the server has this device registered.");
                     }
 
-                } catch (Exception e) {
-                    String msg = "VPN Failure: " + e.getMessage();
+                } catch (final Exception e) {
+                    final String msg = "VPN Failure: " + e.getMessage();
                     Log.e(TAG, msg, e);
-                    GarlicActivity.notifyVpnError(msg);
-                    GarlicActivity.notifyVpnStateChanged(0); // ERROR/DOWN
+
+                    // KEY FIX: If the OS hasn't committed the user's VPN permission yet
+                    // (race condition between onActivityResult and GoBackend.establish),
+                    // wait 3 seconds and retry ONE time before reporting failure to C++.
+                    String errLower = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+                    if (errLower.contains("prepare") || errLower.contains("establish") || errLower.contains("permission")) {
+                        Log.w(TAG, "VPN permission not yet committed by OS — retrying in 3s...");
+                        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                Log.i(TAG, "Retry attempt: re-queuing startVpn into executor...");
+                                // Re-use the same intent data stored in the outer scope
+                                final String retryKey    = intent.getStringExtra("privateKey");
+                                final String retryAddr   = intent.getStringExtra("address");
+                                final String retrySvKey  = intent.getStringExtra("serverPubKey");
+                                final String retryEp     = intent.getStringExtra("endpoint");
+                                final String retryAllowed= intent.getStringExtra("allowedIps");
+                                if (retryKey != null && !retryKey.isEmpty()) {
+                                    startVpn(intent);
+                                } else {
+                                    GarlicActivity.notifyVpnError(msg);
+                                    GarlicActivity.notifyVpnStateChanged(0);
+                                }
+                            }
+                        }, 3000);
+                    } else {
+                        GarlicActivity.notifyVpnError(msg);
+                        GarlicActivity.notifyVpnStateChanged(0); // ERROR/DOWN
+                    }
                 }
             }
         });

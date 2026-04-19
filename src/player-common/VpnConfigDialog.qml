@@ -6,665 +6,398 @@ import QtQuick.Window 2.12
 Rectangle {
     id: vpnRoot
     anchors.fill: parent
-    color: "transparent"
+    color: "#000000"
 
-    property var backendConfig: vpnConfig // Initialize from global context if not passed explicitly
+    property var backendConfig: vpnConfig
 
-    // Background overlay for when loaded standalone
-    Rectangle {
-        anchors.fill: parent
-        color: "#050505"
-        opacity: 0.9
-        visible: parent.width > vpnCard.width || parent.height > vpnCard.height
-    }
-
-    // Map Backend Status to UI
-    // Status codes: 0: Disconnected, 1: Connecting, 2: Connected, 3: Error
+    // Status Mapping
     readonly property int vpnStatus: vpnRoot.backendConfig ? vpnRoot.backendConfig.status : 0
     readonly property bool isConnecting: vpnStatus === 1
-    readonly property bool isConnected: vpnStatus === 2
-    readonly property bool hasError: vpnStatus === 3
-    property string statusMessage: vpnRoot.backendConfig ? vpnRoot.backendConfig.errorMessage : "Backend Not Initialized"
+    readonly property bool isConnected:  vpnStatus === 2
+    readonly property bool hasError:     vpnStatus === 3
+    readonly property bool isRegistering: vpnStatus === 4
+    readonly property bool isRegistered: !!(vpnRoot.backendConfig && vpnRoot.backendConfig.virtualIp !== "")
 
-    signal saveConfig()
+    property string statusMessage: vpnRoot.backendConfig ? vpnRoot.backendConfig.errorMessage : ""
+
     signal cancel()
 
     readonly property bool isMobile: Screen.primaryOrientation === Qt.PortraitOrientation || vpnRoot.width < 600
-    readonly property real cardWidth: isMobile ? vpnRoot.width : Math.min(vpnRoot.width * 0.9, 450)
-    readonly property real cardHeight: isMobile ? vpnRoot.height : Math.min(vpnRoot.height * 0.95, 750)
-    readonly property real cardRadius: isMobile ? 0 : 12
-    readonly property real baseFontSize: isMobile ? 16 : 18
-    readonly property real smallFontSize: baseFontSize * 0.8
-    readonly property real fieldHeight: isMobile ? 60 : 65
+    readonly property real cardWidth:  isMobile ? vpnRoot.width  : Math.min(vpnRoot.width  * 0.9, 460)
+    readonly property real cardHeight: isMobile ? vpnRoot.height : Math.min(vpnRoot.height * 0.95, 760)
 
-    property bool showPrivateKey: false
+    Component.onCompleted: if (vpnRoot.backendConfig) vpnRoot.backendConfig.load()
 
-    Component.onCompleted: {
-        console.warn("[VpnConfig] Loaded. Backend reachable:", !!vpnRoot.backendConfig)
-        if (vpnRoot.backendConfig) {
-            vpnRoot.backendConfig.load()
-        }
-    }
-
-    Connections {
-        target: vpnConfig
-        onStatusChanged: console.log("[VpnConfig] Status changed to: " + (vpnConfig ? vpnConfig.status : "null"))
-        onErrorMessageChanged: console.log("[VpnConfig] Error message: " + (vpnConfig ? vpnConfig.errorMessage : "null"))
-    }
-
+    // ── Main Card ─────────────────────────────────────────────────────────────
     Rectangle {
         id: vpnCard
-        width: vpnRoot.cardWidth
+        width:  vpnRoot.cardWidth
         height: vpnRoot.cardHeight
         anchors.centerIn: parent
-        color: "#1e1e1e"
-        radius: vpnRoot.cardRadius
-        clip: true
+        color:  "#121212"
+        radius: isMobile ? 0 : 16
+        clip:   true
 
-        // Header with Back Button and Diagnostic Status Bar
+        // ── Header ────────────────────────────────────────────────────────────
         Rectangle {
             id: header
             width: parent.width
-            height: 60
+            height: 70
             color: "transparent"
             z: 10
 
-            // BACKEND DIAGNOSTIC BAR
-            Rectangle {
-                id: diagBar
-                width: parent.width
-                height: 24
-                anchors.top: parent.top
-                color: vpnRoot.backendConfig ? "#0066ff" : "#ff0000"
-                opacity: 0.9
-                z: 20
-                
-                Text {
-                    text: vpnRoot.backendConfig ? "✓ SYSTEM ENGINE: READY" : "✕ SYSTEM ENGINE: DISCONNECTED"
-                    color: "white"
-                    font.pixelSize: 12
-                    font.weight: Font.Bold
-                    anchors.centerIn: parent
-                }
-
-                // Flash Animation for touch verification
-                SequentialAnimation {
-                    id: clickFlash
-                    NumberAnimation { target: diagBar; property: "opacity"; from: 0.9; to: 0.2; duration: 50 }
-                    NumberAnimation { target: diagBar; property: "opacity"; from: 0.2; to: 0.9; duration: 50 }
-                }
-            }
-
             Button {
-                id: backBtn
-                anchors.left: parent.left
-                anchors.top: diagBar.bottom
-                anchors.margins: 5
-                width: 44
-                height: 44
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 15 }
+                width: 44; height: 44
                 contentItem: Text {
-                    text: "←"
-                    color: "white"
+                    text: "←"; color: "white"
                     font.pixelSize: 28
                     horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                    verticalAlignment:   Text.AlignVCenter
                 }
                 background: Item {}
-                onClicked: {
-                    clickFlash.start()
-                    console.warn("[VpnConfig] BACK clicked")
-                    vpnRoot.cancel()
-                }
+                onClicked: vpnRoot.cancel()
             }
 
             Text {
-                text: "SECURE VPN SETUP"
-                anchors.top: diagBar.bottom
-                anchors.topMargin: 20
-                anchors.horizontalCenter: parent.horizontalCenter
+                text: "GATEWAY ACCESS"
+                anchors.centerIn: parent
                 color: "white"
-                font.pixelSize: 22
-                font.weight: Font.Bold
+                font { pixelSize: 20; weight: Font.Bold; letterSpacing: 2 }
             }
         }
 
-        ScrollView {
-            id: vpnScrollView
-            anchors.fill: parent
-            anchors.topMargin: header.height
-            contentWidth: availableWidth
-            contentHeight: vpnLayout.implicitHeight + 40
-            clip: true
-            background: Rectangle { color: "transparent" }
+        // ── Status Banner (pinned footer — defined before ScrollView so anchors resolve) ──
+        Rectangle {
+            id: statusBanner
+            height: 65
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                      leftMargin: 20; rightMargin: 20; bottomMargin: 20 }
+            radius: 8
+            color:        vpnRoot.hasError    ? "#3d1a1a" : (vpnRoot.isConnected ? "#1a3d1a" : "#1a1a1a")
+            border.color: vpnRoot.hasError    ? "#ff4444" : (vpnRoot.isConnected ? "#00ff00" : "#333")
 
-            ColumnLayout {
-                id: vpnLayout
-                width: parent.width
-                spacing: 15
+            RowLayout {
+                anchors { fill: parent; margins: 14 }
+                spacing: 12
 
-                // Section: Device Identity (Editable Private/Public Keys)
-                ColumnLayout {
+                BusyIndicator {
+                    running: vpnRoot.isRegistering || vpnRoot.isConnecting
+                    visible: running
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+                }
+
+                Text {
+                    // FIX: wrapMode + maximumLineCount prevents vertical overflow
+                    text: vpnRoot.hasError      ? ("✕  " + vpnRoot.statusMessage) :
+                          vpnRoot.isConnected   ? "✓  TUNNEL ENCRYPTED" :
+                          (vpnRoot.isConnecting || vpnRoot.isRegistering) ? "NEGOTIATING…" :
+                          "READY TO ENROLL"
+
+                    color: vpnRoot.hasError ? "#ff4444" : (vpnRoot.isConnected ? "#00ff00" : "white")
+                    font { pixelSize: 12; weight: Font.Bold }
                     Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    spacing: 12
+                    wrapMode: Text.NoWrap
+                    elide:    Text.ElideRight      // single-line clamp — no vertical blowout
+                }
+            }
+        }
 
-                    // Private Key Field
-                    TextField {
-                        id: privateKeyInput
-                        text: vpnConfig ? vpnConfig.privateKey : ""
-                        echoMode: vpnRoot.showPrivateKey ? TextInput.Normal : TextInput.Password
+        // ── Scrollable Content ─────────────────────────────────────────────────
+        ScrollView {
+            id: contentScroll
+            anchors {
+                top:    header.bottom
+                left:   parent.left
+                right:  parent.right
+                bottom: statusBanner.top
+                bottomMargin: 8
+            }
+            clip: true
+            // FIX: fix contentWidth to the available width so ColumnLayout
+            // never tries to expand horizontally, eliminating horizontal overflow.
+            contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+            // FIX: Use a plain Item wrapper instead of anchoring ColumnLayout
+            // directly inside ScrollView — Qt does not support anchors on the
+            // immediate child of ScrollView's internal Flickable contentItem.
+            Item {
+                width: contentScroll.availableWidth
+
+                ColumnLayout {
+                    id: vpnLayout
+                    // FIX: bind width instead of using anchors
+                    width: parent.width
+                    x: 0; y: 0
+                    spacing: 22
+
+                    // ── STAGE 1: DEVICE IDENTITY ──────────────────────────────
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "white"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.85
-                        font.family: "Monospace"
-                        leftPadding: 15
-                        topPadding: 20
-                        placeholderText: "Pasted Private Key here..."
-                        background: vpnFieldBg("DEVICE PRIVATE KEY", privateKeyInput.activeFocus)
-                        onTextEdited: {
-                            if (vpnRoot.backendConfig) {
-                                vpnRoot.backendConfig.privateKey = text
-                                if (vpnRoot.hasError) vpnRoot.backendConfig.setStatus(0)
-                            }
-                        }
-                        onEditingFinished: {
-                             if (vpnRoot.backendConfig) {
-                                 vpnRoot.backendConfig.privateKey = text
-                                 vpnRoot.backendConfig.save()
-                             }
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 20
+                        Layout.topMargin: 12
+                        spacing: 8
+
+                        Text {
+                            text: "DEVICE IDENTITY"
+                            color: "#666"
+                            font { pixelSize: 11; weight: Font.Bold }
                         }
 
-                        // Action Buttons Row
-                        Row {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            spacing: 12
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: identityCol.implicitHeight + 30
+                            color: "#1a1a1a"; radius: 10; border.color: "#333"
 
-                            // Clear Button
-                            Button {
-                                width: 24; height: 24
-                                visible: privateKeyInput.text !== ""
-                                contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                                background: Item {}
-                                onClicked: {
-                                    privateKeyInput.text = ""
-                                    if (vpnConfig) {
-                                        vpnConfig.privateKey = ""
-                                        vpnConfig.save()
+                            ColumnLayout {
+                                id: identityCol
+                                anchors { fill: parent; margins: 15 }
+                                spacing: 10
+
+                                RowLayout {
+                                    spacing: 8
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        Text {
+                                            text: vpnRoot.backendConfig ? vpnRoot.backendConfig.playerName : "UNKNOWN_DEVICE"
+                                            color: "white"
+                                            font { pixelSize: 17; weight: Font.Bold }
+                                            // FIX: clamp long device names
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            // FIX: truncate pub-key display to prevent overflow
+                                            text: "ID: " + (vpnRoot.backendConfig ? vpnRoot.backendConfig.publicKey.substring(0, 20) + "…" : "---")
+                                            color: "#888"
+                                            font { pixelSize: 11; family: "Monospace" }
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Button {
+                                        text: "COPY"
+                                        flat: true
+                                        Layout.preferredWidth: 44
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: "#ffff00"
+                                            font { pixelSize: 10; weight: Font.Bold }
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment:   Text.AlignVCenter
+                                        }
+                                        onClicked: if (vpnRoot.backendConfig)
+                                            vpnRoot.backendConfig.copyToClipboard(vpnRoot.backendConfig.publicKey)
+                                    }
+                                }
+
+                                Rectangle { height: 1; Layout.fillWidth: true; color: "#333" }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "ENROLLMENT TOKEN (TENANT ASSET TAG)"
+                                        color: "#888"
+                                        font { pixelSize: 9; weight: Font.Bold }
+                                    }
+
+                                    TextField {
+                                        id: tokenInput
+                                        text: vpnRoot.backendConfig ? vpnRoot.backendConfig.enrollmentToken : ""
+                                        placeholderText: "Enter token…"
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 45
+                                        color: "#ffff00"
+                                        font { pixelSize: 13; family: "Monospace" }
+                                        leftPadding: 10
+                                        background: Rectangle {
+                                            color: "#121212"; radius: 6
+                                            border.color: tokenInput.activeFocus ? "#ffff00" : "#222"
+                                        }
+                                        onTextChanged: if (vpnRoot.backendConfig)
+                                            vpnRoot.backendConfig.enrollmentToken = text
                                     }
                                 }
                             }
-
-                            // Reveal Toggle
-                            Button {
-                                width: 24; height: 24
-                                contentItem: Text { text: vpnRoot.showPrivateKey ? "👁️" : "🙈"; font.pixelSize: 20; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                                background: Item {}
-                                onClicked: vpnRoot.showPrivateKey = !vpnRoot.showPrivateKey
-                            }
                         }
                     }
 
-                    // Public Key Field
-                    TextField {
-                        id: publicKeyInput
-                        text: vpnConfig ? vpnConfig.publicKey : ""
+                    // ── STAGE 2: ACTION ───────────────────────────────────────
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "#ffff00"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.85
-                        font.family: "Monospace"
-                        leftPadding: 15
-                        topPadding: 20
-                        placeholderText: "Corresponding Public Key..."
-                        background: vpnFieldBg("DEVICE PUBLIC KEY (SHARE WITH CMS)", publicKeyInput.activeFocus)
-                        onEditingFinished: {
-                             if (vpnRoot.backendConfig) {
-                                 vpnRoot.backendConfig.publicKey = text
-                                 vpnRoot.backendConfig.save()
-                             }
-                        }
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 20
+                        spacing: 12
+                        visible: !vpnRoot.isConnected && !vpnRoot.isRegistered
 
-                        // Clear Button
                         Button {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            width: 24; height: 24
-                            visible: publicKeyInput.text !== ""
-                            contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            background: Item {}
+                            id: registerBtn
+                            text: "REGISTER & SECURE DEVICE"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 55
+                            enabled: !vpnRoot.isConnecting && !vpnRoot.isRegistering
+
+                            contentItem: Text {
+                                text: registerBtn.text
+                                color: registerBtn.enabled ? "black" : "#555"
+                                font { weight: Font.Bold; pixelSize: 14 }
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment:   Text.AlignVCenter
+                                // FIX: scale down on very narrow screens
+                                elide: Text.ElideRight
+                            }
+                            background: Rectangle {
+                                color: registerBtn.enabled ? "#ffff00" : "#333"
+                                radius: 8
+                            }
                             onClicked: {
-                                publicKeyInput.text = ""
                                 if (vpnRoot.backendConfig) {
-                                    vpnRoot.backendConfig.publicKey = ""
                                     vpnRoot.backendConfig.save()
+                                    vpnRoot.backendConfig.startVpn()
                                 }
                             }
                         }
                     }
 
-                    RowLayout {
+                    // ── STAGE 3: NETWORK RESULTS ──────────────────────────────
+                    ColumnLayout {
                         Layout.fillWidth: true
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 20
                         spacing: 10
-
-                        Button {
-                            id: copyBtn
-                            text: "COPY PUBLIC KEY"
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 35
-                            contentItem: Text {
-                                text: copyBtn.text
-                                font.pixelSize: vpnRoot.smallFontSize
-                                color: "black"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: "#ffff00"; radius: 4 }
-                            onClicked: {
-                                if (vpnRoot.backendConfig) {
-                                    vpnRoot.backendConfig.copyToClipboard(vpnRoot.backendConfig.publicKey)
-                                    copyBtn.text = "COPIED!"
-                                    copyTimer.start()
-                                }
-                            }
-                        }
-
-                        Timer { id: copyTimer; interval: 2000; onTriggered: copyBtn.text = "COPY PUBLIC KEY" }
-
-                        Button {
-                            id: refreshBtn
-                            text: "GENERATE NEW"
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 35
-                            contentItem: Text {
-                                text: refreshBtn.text
-                                font.pixelSize: vpnRoot.smallFontSize
-                                color: "white"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle { color: "#444444"; radius: 4 }
-                            onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.generateIdentity()
-                        }
-                    }
-                }
-
-                // Section: Server Configuration
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    spacing: 12
-
-                    TextField {
-                        id: serverKeyInput
-                        placeholderText: "Enter Server Public Key from CMS"
-                        text: vpnConfig ? vpnConfig.serverPublicKey : ""
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "white"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.9
-                        leftPadding: 15
-                        topPadding: 20
-                        background: vpnFieldBg("SERVER PUBLIC KEY", serverKeyInput.activeFocus)
-                        onEditingFinished: {
-                             if (vpnConfig) {
-                                 vpnConfig.serverPublicKey = text
-                                 vpnConfig.save()
-                             }
-                        }
-
-                        // Clear Button
-                        Button {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            width: 24; height: 24
-                            visible: serverKeyInput.text !== ""
-                            contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            background: Item {}
-                            onClicked: {
-                                serverKeyInput.text = ""
-                                if (vpnConfig) {
-                                    vpnConfig.serverPublicKey = ""
-                                    vpnConfig.save()
-                                }
-                            }
-                        }
-                    }
-
-                    TextField {
-                        id: serverIpInput
-                        placeholderText: "vpn.example.com:51820"
-                        text: vpnConfig ? vpnConfig.serverEndpoint : ""
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "white"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.9
-                        leftPadding: 15
-                        topPadding: 20
-                        background: vpnFieldBg("VPN SERVER ENDPOINT", serverIpInput.activeFocus)
-                        onEditingFinished: {
-                             if (vpnConfig) {
-                                 vpnConfig.serverEndpoint = text
-                                 vpnConfig.save()
-                             }
-                        }
-
-                        // Clear Button
-                        Button {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            width: 24; height: 24
-                            visible: serverIpInput.text !== ""
-                            contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            background: Item {}
-                            onClicked: {
-                                serverIpInput.text = ""
-                                if (vpnConfig) {
-                                    vpnConfig.serverEndpoint = ""
-                                    vpnConfig.save()
-                                }
-                            }
-                        }
-                    }
-
-                    TextField {
-                        id: virtualIpInput
-                        placeholderText: "10.8.0.2/32"
-                        text: vpnConfig ? vpnConfig.virtualIp : ""
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "white"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.9
-                        leftPadding: 15
-                        topPadding: 20
-                        background: vpnFieldBg("VIRTUAL IP (CLIENT)", virtualIpInput.activeFocus)
-                        onEditingFinished: if (vpnConfig) vpnConfig.save()
-
-                        // Clear Button
-                        Button {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            width: 24; height: 24
-                            visible: virtualIpInput.text !== ""
-                            contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            background: Item {}
-                            onClicked: {
-                                virtualIpInput.text = ""
-                                if (vpnConfig) {
-                                    vpnConfig.virtualIp = ""
-                                    vpnConfig.save()
-                                }
-                            }
-                        }
-                    }
-
-                    TextField {
-                        id: allowedIpsInput
-                        placeholderText: "0.0.0.0/0"
-                        text: vpnConfig ? vpnConfig.allowedIps : "0.0.0.0/0"
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: vpnRoot.fieldHeight
-                        color: "white"
-                        font.pixelSize: vpnRoot.baseFontSize * 0.9
-                        leftPadding: 15
-                        topPadding: 20
-                        background: vpnFieldBg("ALLOWED IPS (TARGET RANGE)", allowedIpsInput.activeFocus)
-                        onEditingFinished: {
-                             if (vpnConfig) {
-                                 vpnConfig.allowedIps = text
-                                 vpnConfig.save()
-                             }
-                        }
-
-                        // Clear Button
-                        Button {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.rightMargin: 10
-                            width: 24; height: 24
-                            visible: allowedIpsInput.text !== ""
-                            contentItem: Text { text: "✕"; color: "#888888"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                            background: Item {}
-                            onClicked: {
-                                allowedIpsInput.text = "0.0.0.0/0"
-                                if (vpnConfig) {
-                                    vpnConfig.allowedIps = "0.0.0.0/0"
-                                    vpnConfig.save()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Status Message Area
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    color: vpnRoot.hasError ? "#331111" : (vpnRoot.isConnected ? "#113311" : "transparent")
-                    radius: 8
-                    visible: vpnRoot.hasError || vpnRoot.isConnected || vpnRoot.isConnecting
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 10
-
-                        BusyIndicator {
-                            visible: vpnRoot.isConnecting
-                            Layout.preferredWidth: 30
-                            Layout.preferredHeight: 30
-                        }
+                        visible: vpnRoot.isRegistered || vpnRoot.isConnected
 
                         Text {
-                            text: vpnRoot.hasError ? "ERROR: " + vpnRoot.statusMessage : 
-                                  (vpnRoot.isConnected ? "✓ VPN TUNNEL SECURED" : 
-                                  (vpnRoot.isConnecting ? "ESTABLISHING HANDSHAKE..." : ""))
-                            color: vpnRoot.hasError ? "#ff4444" : (vpnRoot.isConnected ? "#00ff00" : "white")
-                            font.pixelSize: vpnRoot.smallFontSize
-                            font.weight: Font.Bold
+                            text: "ASSIGNED CONNECTION"
+                            color: "#666"
+                            font { pixelSize: 11; weight: Font.Bold }
+                        }
+
+                        Rectangle {
                             Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
+                            Layout.preferredHeight: resultCol.implicitHeight + 30
+                            color: "#0a2a0a"; radius: 10; border.color: "#1e4a1e"
 
-                // Action Buttons
-                Button {
-                    id: connectBtn
-                    text: vpnRoot.isConnected ? "CONNECTED" : (vpnRoot.isConnecting ? "CONNECTING..." : "SAVE & CONNECT")
-                    enabled: !vpnRoot.isConnecting
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 50
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    contentItem: Text {
-                        text: connectBtn.text
-                        font.pixelSize: vpnRoot.baseFontSize
-                        font.weight: Font.Bold
-                        color: (vpnRoot.isConnected || vpnRoot.hasError) ? "white" : "black"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: vpnRoot.isConnected ? "#1a3300" : (vpnRoot.hasError ? "#aa0000" : (vpnRoot.isConnecting ? "#888800" : "#ffff00"))
-                        radius: 8
-                    }
-                    onClicked: {
-                        clickFlash.start()
-                        console.warn("[VpnConfig] SAVE & CONNECT clicked. Backend valid: " + (!!vpnRoot.backendConfig))
-                        if (!vpnRoot.backendConfig) {
-                             statusMessage = "Error: VPN Backend missing. Please restart app."
-                             return;
-                        }
+                            ColumnLayout {
+                                id: resultCol
+                                anchors { fill: parent; margins: 15 }
+                                spacing: 10
 
-                        console.warn("[VpnConfig] Attempting start with: Endpoint=" + serverIpInput.text + " ClientIP=" + virtualIpInput.text + " Allowed=" + allowedIpsInput.text)
+                                RowLayout {
+                                    Text { text: "VIRTUAL IP:"; color: "#8b8"; font.pixelSize: 11 }
+                                    Text {
+                                        text: vpnRoot.backendConfig ? vpnRoot.backendConfig.virtualIp : "---"
+                                        color: "white"; font.weight: Font.Bold
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignRight
+                                        elide: Text.ElideLeft
+                                    }
+                                }
 
-                        // Instant UI Validation
-                        if (privateKeyInput.text === "" || serverKeyInput.text === "" || serverIpInput.text === "" || virtualIpInput.text === "") {
-                            vpnRoot.backendConfig.errorMessage = "Please fill all required keys and server fields.";
-                            vpnRoot.backendConfig.status = 3; // Error
-                            return;
+                                Rectangle { height: 1; Layout.fillWidth: true; color: "#1e4a1e" }
+
+                                RowLayout {
+                                    Text { text: "GATEWAY:"; color: "#8b8"; font.pixelSize: 11 }
+                                    Text {
+                                        text: vpnRoot.backendConfig ? vpnRoot.backendConfig.serverEndpoint : "---"
+                                        color: "white"; font.weight: Font.Bold
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignRight
+                                        elide: Text.ElideLeft
+                                    }
+                                }
+                            }
                         }
 
-                        // Character Length Validation (WireGuard keys are typically 44 chars)
-                        if (privateKeyInput.text.length < 40 || serverKeyInput.text.length < 40) {
-                            vpnRoot.backendConfig.errorMessage = "Invalid Key Format. Keys must be standard Base64 (approx 44 chars).";
-                            vpnRoot.backendConfig.status = 3; 
-                            return;
+                        // ── MANUAL CONNECT BUTTON ─────────────────────────────
+                        // Visible when registered but NOT yet tunnelling
+                        Button {
+                            id: connectBtn
+                            text: vpnRoot.isConnecting ? "CONNECTING…" : "⬆  CONNECT TUNNEL"
+                            visible: vpnRoot.isRegistered && !vpnRoot.isConnected
+                            enabled: !vpnRoot.isConnecting && !vpnRoot.isRegistering
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 55
+
+                            contentItem: Text {
+                                text: connectBtn.text
+                                color: connectBtn.enabled ? "black" : "#666"
+                                font { weight: Font.Bold; pixelSize: 14 }
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment:   Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                            background: Rectangle {
+                                color: connectBtn.enabled ? "#00e5ff" : "#1a3a3a"
+                                radius: 8
+                                // Pulse animation while connecting
+                                SequentialAnimation on opacity {
+                                    running:  vpnRoot.isConnecting
+                                    loops:    Animation.Infinite
+                                    NumberAnimation { to: 0.4; duration: 700; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }
+                                }
+                            }
+                            onClicked: {
+                                if (vpnRoot.backendConfig) {
+                                    vpnRoot.backendConfig.startVpn()
+                                }
+                            }
                         }
 
-                        vpnRoot.backendConfig.isEnabled = true;
-                        vpnRoot.backendConfig.save();
-                        vpnRoot.backendConfig.startVpn();
-                        console.warn("[VpnConfig] backend.startVpn() called. Resulting status: " + vpnRoot.backendConfig.status)
+                        // ── DISCONNECT BUTTON ─────────────────────────────────
+                        Button {
+                            id: disconnectBtn
+                            text: "⬇  DISCONNECT TUNNEL"
+                            visible: vpnRoot.isConnected
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+                            flat: true
+                            contentItem: Text {
+                                text: disconnectBtn.text
+                                color: "#ff6b6b"
+                                font { pixelSize: 13; weight: Font.Bold }
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment:   Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                color: disconnectBtn.hovered ? "#3d1a1a" : "transparent"
+                                radius: 8
+                                border.color: "#ff4444"
+                            }
+                            onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.stopVpn()
+                        }
+
+                        // ── RESET REGISTRATION ────────────────────────────────
+                        Button {
+                            text: "RESET REGISTRATION"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            flat: true
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#ff4444"
+                                font.pixelSize: 12
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment:   Text.AlignVCenter
+                            }
+                            onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.resetRegistration()
+                        }
+
+                        // Bottom spacing so content doesn't sit flush against the banner
+                        Item { Layout.preferredHeight: 8 }
                     }
-                }
-
-                Text {
-                    text: vpnRoot.isConnected ? "The secure tunnel is active. All traffic is now routed through your VPC." : "Verify your identity keys and server endpoint before connecting."
-                    color: "#888888"
-                    font.pixelSize: vpnRoot.smallFontSize * 0.9
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 30
-                    Layout.rightMargin: 30
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                }
-
-                Item { Layout.preferredHeight: 20 }
-            }
-        }
-    }
-
-    // Premium Status Overlay (similar to ConfigDialog)
-    Rectangle {
-        id: statusOverlay
-        anchors.fill: vpnCard
-        color: "#1e1e1e"
-        visible: vpnRoot.isConnecting || vpnRoot.isConnected || (vpnRoot.hasError && vpnRoot.statusMessage !== "")
-        enabled: visible
-        z: 100
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            width: parent.width * 0.8
-            spacing: 20
-
-            Item {
-                Layout.alignment: Qt.AlignHCenter
-                width: 80
-                height: 80
-
-                BusyIndicator {
-                    anchors.fill: parent
-                    running: vpnRoot.isConnecting
-                    visible: vpnRoot.isConnecting
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "✓"
-                    color: "#00ff00"
-                    font.pixelSize: 64
-                    visible: vpnRoot.isConnected
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "✕"
-                    color: "#ff4444"
-                    font.pixelSize: 64
-                    visible: vpnRoot.hasError
-                }
-            }
-
-            Text {
-                text: vpnRoot.isConnecting ? "ESTABLISHING VPN TUNNEL..." : 
-                      (vpnRoot.isConnected ? "CONNECTION SECURED" : "CONNECTION FAILED")
-                color: "white"
-                font.pixelSize: vpnRoot.baseFontSize * 1.2
-                font.weight: Font.Bold
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            Text {
-                text: vpnRoot.hasError ? vpnRoot.statusMessage : 
-                      (vpnRoot.isConnected ? "All traffic is now routed through your VPC." : "Please wait while we perform the server handshake.")
-                color: "#888888"
-                font.pixelSize: vpnRoot.smallFontSize
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-            }
-
-            Button {
-                id: retryBtn
-                text: "TRY AGAIN"
-                visible: vpnRoot.hasError
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 150
-                Layout.preferredHeight: 45
-                contentItem: Text {
-                    text: "TRY AGAIN"
-                    color: "black"
-                    font.weight: Font.Bold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: "#ffff00"; radius: 6 }
-                onClicked: vpnConfig.setStatus(0) // Back to neutral
-            }
-
-            Button {
-                id: closeBtn
-                text: "CLOSE"
-                visible: vpnRoot.isConnected
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 150
-                Layout.preferredHeight: 45
-                contentItem: Text {
-                    text: "CLOSE"
-                    color: "white"
-                    font.weight: Font.Bold
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle { color: "#333333"; radius: 6 }
-                onClicked: vpnRoot.cancel()
-            }
-        }
-    }
-
-    function vpnFieldBg(label, isFocused) {
-        return Qt.createQmlObject('
-            import QtQuick 2.12
-            Rectangle {
-                color: "#252525"
-                radius: 8
-                border.color: ' + (isFocused ? '"#ffff00"' : '"#333333"') + '
-                border.width: ' + (isFocused ? '2' : '1') + '
-                Text {
-                    text: "' + label + '"
-                    color: "#ffff00"
-                    font.pixelSize: 10
-                    font.weight: Font.Bold
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.leftMargin: 15
-                    anchors.topMargin: 6
-                }
-            }
-        ', vpnRoot);
-    }
+                }   // ColumnLayout
+            }       // Item wrapper
+        }           // ScrollView
+    }               // vpnCard
 }

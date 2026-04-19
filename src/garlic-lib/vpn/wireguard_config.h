@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QString>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include "tools/i_main_configuration.hpp"
 
 class WireguardConfig : public QObject
@@ -17,8 +19,20 @@ class WireguardConfig : public QObject
     Q_PROPERTY(bool isEnabled READ getIsEnabled WRITE setIsEnabled NOTIFY isEnabledChanged)
     Q_PROPERTY(int status READ getStatus NOTIFY statusChanged)
     Q_PROPERTY(QString errorMessage READ getErrorMessage WRITE setErrorMessage NOTIFY errorMessageChanged)
+    Q_PROPERTY(QString playerName READ getPlayerName NOTIFY playerNameChanged)
+    Q_PROPERTY(QString enrollmentToken READ getEnrollmentToken WRITE setEnrollmentToken NOTIFY enrollmentTokenChanged)
 
 public:
+    // VPN Status codes
+    enum VpnStatus {
+        Disconnected = 0,
+        Connecting   = 1,
+        Connected    = 2,
+        Error        = 3,
+        Registering  = 4  // NEW: performing backend handshake
+    };
+    Q_ENUM(VpnStatus)
+
     explicit WireguardConfig(IMainConfiguration *mainConfig, QObject *parent = nullptr);
 
     Q_INVOKABLE void load();
@@ -54,11 +68,25 @@ public:
 
     Q_INVOKABLE void copyToClipboard(const QString &text);
 
+    // Enrollment token — set once during provisioning or pre-baked into the build
+    void setEnrollmentToken(const QString &token);
+    QString getEnrollmentToken() const;
+
+    // Federated Identity from Main Config
+    QString getPlayerName() const;
+
+    // Management API base URL (host of the NestJS backend, not the VPN port)
+    void setManagementBaseUrl(const QString &url);
+
 public slots:
     void generateIdentity();
     void startVpn();
     void stopVpn();
     void setVpnError(const QString &message);
+
+    // NEW: Zero-touch auto-registration slots
+    void performHandshake();
+    void resetRegistration();
 
 signals:
     void publicKeyChanged();
@@ -70,12 +98,17 @@ signals:
     void statusChanged();
     void privateKeyChanged();
     void errorMessageChanged();
+    void playerNameChanged();
+    void enrollmentTokenChanged();
 
     // Requests to the main application (AndroidManager)
     void requestKeyGeneration();
     void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
     void requestSystemReport();
+
+private slots:
+    void handleRegistrationResponse(QNetworkReply *reply);
 
 private:
     IMainConfiguration *m_mainConfig;
@@ -88,6 +121,14 @@ private:
     bool m_isEnabled;
     int m_status;
     QString m_errorMessage;
+
+    // Auto-registration state
+    QString m_enrollmentToken;
+    QString m_managementBaseUrl;
+    bool m_isRegistered;
+    QNetworkAccessManager *m_networkManager;
+
+    bool isConfigComplete() const;
 };
 
 #endif // WIREGUARDCONFIG_H

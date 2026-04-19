@@ -2,43 +2,72 @@
 #include <QDebug>
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QUrl>
+
+// ─── Default management API base (port 3000 = NestJS backend) ────────────────
+// Override at runtime via setManagementBaseUrl() if your deployment differs.
+static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://107.172.34.199:3005");
+
+// ─── Default enrollment token ─────────────────────────────────────────────────
+// This matches the token stored in the backend for the initial fleet tenant.
+// Devices that have already registered will skip the handshake automatically.
+static const QString DEFAULT_ENROLLMENT_TOKEN = QStringLiteral("542d5627-b53e-43b5-b90c-863f545a3c2d.38245c33");
 
 WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent)
     : QObject(parent)
     , m_mainConfig(mainConfig)
-    , m_publicKey("6OMgw4AAzYYki98Y/Bc6W28EZd+D4cNuhgHI5PO/7wE=")
-    , m_serverPublicKey("/10fQ5iHpMKALWt2Xoz05xDB1olb9ze1F4YH5kfHzxQ=")
+    , m_publicKey("")
+    , m_serverPublicKey("47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8=")  // current server pub key
     , m_serverEndpoint("107.172.34.199:51820")
     , m_virtualIp("")
     , m_allowedIps("0.0.0.0/0")
     , m_isEnabled(false)
     , m_status(0)
     , m_errorMessage("")
+    , m_enrollmentToken(DEFAULT_ENROLLMENT_TOKEN)
+    , m_managementBaseUrl(DEFAULT_MANAGEMENT_URL)
+    , m_isRegistered(false)
+    , m_networkManager(new QNetworkAccessManager(this))
 {
+    connect(m_networkManager, &QNetworkAccessManager::finished,
+            this, &WireguardConfig::handleRegistrationResponse);
 }
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
 
 void WireguardConfig::load()
 {
     if (!m_mainConfig) return;
 
-    m_privateKey = m_mainConfig->getUserConfigByKey("vpn_private_key");
-    
-    m_publicKey = m_mainConfig->getUserConfigByKey("vpn_public_key");
-    if (m_publicKey.isEmpty()) m_publicKey = "6OMgw4AAzYYki98Y/Bc6W28EZd+D4cNuhgHI5PO/7wE=";
-    
+    m_privateKey      = m_mainConfig->getUserConfigByKey("vpn_private_key");
+    m_publicKey       = m_mainConfig->getUserConfigByKey("vpn_public_key");
     m_serverPublicKey = m_mainConfig->getUserConfigByKey("vpn_server_public_key");
-    if (m_serverPublicKey.isEmpty()) m_serverPublicKey = "/10fQ5iHpMKALWt2Xoz05xDB1olb9ze1F4YH5kfHzxQ="; // Placeholder-free
+    if (m_serverPublicKey.isEmpty())
+        m_serverPublicKey = "47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8=";
 
     m_serverEndpoint = m_mainConfig->getUserConfigByKey("vpn_server_endpoint");
     if (m_serverEndpoint.isEmpty()) m_serverEndpoint = "107.172.34.199:51820";
 
-    m_virtualIp = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");
-    if (m_virtualIp.isEmpty()) m_virtualIp = "10.8.0.2/32";
-
+    m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
     if (m_allowedIps.isEmpty()) m_allowedIps = "0.0.0.0/0";
-    
-    m_isEnabled = (m_mainConfig->getUserConfigByKey("vpn_enabled") == "true");
+
+    m_isEnabled    = (m_mainConfig->getUserConfigByKey("vpn_enabled") == "true");
+    m_isRegistered = (m_mainConfig->getUserConfigByKey("vpn_registered") == "true");
+
+    // Restore saved enrollment token if one was persisted
+    QString savedToken = m_mainConfig->getUserConfigByKey("vpn_enrollment_token");
+    if (!savedToken.isEmpty()) m_enrollmentToken = savedToken;
+
+    // ZERO-TOUCH: If no identity exists (first boot), auto-generate it now.
+    if (m_publicKey.isEmpty()) {
+        qDebug() << "[Wireguard] No identity found. Auto-generating secure keypair...";
+        generateIdentity();
+    }
 
     emit privateKeyChanged();
     emit publicKeyChanged();
@@ -47,20 +76,25 @@ void WireguardConfig::load()
     emit virtualIpChanged();
     emit allowedIpsChanged();
     emit isEnabledChanged();
+    emit playerNameChanged();
+    emit enrollmentTokenChanged();
 }
 
 void WireguardConfig::save()
 {
     if (!m_mainConfig) return;
 
-    m_mainConfig->setUserConfigByKey("vpn_private_key", m_privateKey);
-    m_mainConfig->setUserConfigByKey("vpn_public_key", m_publicKey);
+    m_mainConfig->setUserConfigByKey("vpn_private_key",    m_privateKey);
+    m_mainConfig->setUserConfigByKey("vpn_public_key",     m_publicKey);
     m_mainConfig->setUserConfigByKey("vpn_server_public_key", m_serverPublicKey);
     m_mainConfig->setUserConfigByKey("vpn_server_endpoint", m_serverEndpoint);
-    m_mainConfig->setUserConfigByKey("vpn_virtual_ip", m_virtualIp);
-    m_mainConfig->setUserConfigByKey("vpn_allowed_ips", m_allowedIps);
-    m_mainConfig->setUserConfigByKey("vpn_enabled", m_isEnabled ? "true" : "false");
+    m_mainConfig->setUserConfigByKey("vpn_virtual_ip",     m_virtualIp);
+    m_mainConfig->setUserConfigByKey("vpn_allowed_ips",    m_allowedIps);
+    m_mainConfig->setUserConfigByKey("vpn_enabled",        m_isEnabled ? "true" : "false");
+    m_mainConfig->setUserConfigByKey("vpn_registered",     m_isRegistered ? "true" : "false");
 }
+
+// ─── Getters / Setters ────────────────────────────────────────────────────────
 
 QString WireguardConfig::getPublicKey() const { return m_publicKey; }
 void WireguardConfig::setPublicKey(const QString &value)
@@ -132,33 +166,182 @@ void WireguardConfig::setPrivateKey(const QString &value)
     }
 }
 
-void WireguardConfig::generateIdentity()
+void WireguardConfig::setEnrollmentToken(const QString &token)
 {
-    emit requestKeyGeneration();
+    if (m_enrollmentToken != token) {
+        m_enrollmentToken = token;
+        if (m_mainConfig)
+            m_mainConfig->setUserConfigByKey("vpn_enrollment_token", token);
+        emit enrollmentTokenChanged();
+    }
+}
+
+QString WireguardConfig::getEnrollmentToken() const { return m_enrollmentToken; }
+
+QString WireguardConfig::getPlayerName() const
+{
+    return m_mainConfig ? m_mainConfig->getPlayerName() : "UNKNOWN_DEVICE";
+}
+
+void WireguardConfig::setManagementBaseUrl(const QString &url)
+{
+    m_managementBaseUrl = url;
+}
+
+// ─── VPN Lifecycle ────────────────────────────────────────────────────────────
+
+bool WireguardConfig::isConfigComplete() const
+{
+    return !m_privateKey.isEmpty()
+        && !m_publicKey.isEmpty()
+        && !m_serverPublicKey.isEmpty()
+        && !m_serverEndpoint.isEmpty()
+        && !m_virtualIp.isEmpty()
+        && m_isRegistered;
 }
 
 void WireguardConfig::startVpn()
 {
-    qCritical() << "[Wireguard][BACKEND] startVpn() EXECUTING - Target:" << m_serverEndpoint;
+    qCritical() << "[Wireguard] startVpn() called."
+                << "Registered:" << m_isRegistered
+                << "VirtualIp:" << m_virtualIp;
     setErrorMessage("");
-    m_status = 0; // Force reset to trigger refresh
-    setStatus(1); // Connecting
-    
-    emit requestVpnStart(m_privateKey, m_virtualIp, m_serverPublicKey, m_serverEndpoint, m_allowedIps);
+
+    // If the device is not yet registered with the backend, run the handshake first.
+    // startVpn() will be called again automatically by handleRegistrationResponse().
+    if (!isConfigComplete()) {
+        qInfo() << "[Wireguard] Config incomplete — initiating auto-registration handshake.";
+        performHandshake();
+        return;
+    }
+
+    setIsEnabled(true);
+    m_status = 0; // force re-trigger of status signal
+    setStatus(Connecting);
+    emit requestVpnStart(m_privateKey, m_virtualIp + "/32", m_serverPublicKey, m_serverEndpoint, m_allowedIps);
 }
 
 void WireguardConfig::stopVpn()
 {
-    setStatus(0); // Disconnected
+    setIsEnabled(false);
+    setStatus(Disconnected);
     emit requestVpnStop();
 }
 
 void WireguardConfig::setVpnError(const QString &message)
 {
-    qWarning() << "[WireguardConfig] VPN error received:" << message;
+    qWarning() << "[WireguardConfig] VPN error:" << message;
     setErrorMessage(message);
-    setStatus(3); // Error
+    setStatus(Error);
 }
+
+// ─── Zero-Touch Auto-Registration ────────────────────────────────────────────
+
+void WireguardConfig::performHandshake()
+{
+    if (m_publicKey.isEmpty()) {
+        setVpnError("No public key generated. Please generate an identity first.");
+        return;
+    }
+    if (m_enrollmentToken.isEmpty()) {
+        setVpnError("No enrollment token configured.");
+        return;
+    }
+
+    setStatus(Registering);
+    setErrorMessage("Registering device identity with management server...");
+
+    // 'deviceId' is now federated with the global PlayerName (Device Name)
+    QString deviceId = getPlayerName();
+
+    // Build JSON body matching DeviceRegistrationDto exactly
+    QJsonObject payload;
+    payload["deviceId"]        = deviceId;
+    payload["publicKey"]       = m_publicKey;
+    payload["enrollmentToken"] = m_enrollmentToken;  // required field in DTO
+
+    QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
+    QUrl url(m_managementBaseUrl + "/api/v1/devices/vpn-register");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    qInfo() << "[Wireguard] POST" << url.toString() << "deviceId:" << deviceId;
+    m_networkManager->post(request, body);
+}
+
+void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
+{
+    reply->deleteLater();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        QString errMsg = QString("Registration failed: %1").arg(reply->errorString());
+        qWarning() << "[Wireguard]" << errMsg;
+        setVpnError(errMsg);
+        return;
+    }
+
+    QByteArray responseData = reply->readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+    if (doc.isNull() || !doc.isObject()) {
+        setVpnError("Registration failed: invalid JSON response from server.");
+        return;
+    }
+
+    QJsonObject obj = doc.object();
+    // Response fields match DeviceRegistrationResponseDto: clientIp, serverPublicKey, serverEndpoint
+    QString clientIp   = obj.value("clientIp").toString();
+    QString serverKey  = obj.value("serverPublicKey").toString();
+    QString endpoint   = obj.value("serverEndpoint").toString();
+
+    if (clientIp.isEmpty()) {
+        setVpnError("Registration failed: server returned no virtual IP.");
+        return;
+    }
+
+    qInfo() << "[Wireguard] Registration succeeded. VirtualIP:" << clientIp
+            << "ServerKey:" << serverKey;
+
+    if (!serverKey.isEmpty()) m_serverPublicKey = serverKey;
+    if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
+    m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
+    m_isRegistered = true;
+    save();
+
+    emit serverPublicKeyChanged();
+    emit serverEndpointChanged();
+    emit virtualIpChanged();
+    setErrorMessage("Identity confirmed. Establishing tunnel...");
+
+    // Now that we have a valid config, initiate the actual VPN tunnel
+    startVpn();
+}
+
+void WireguardConfig::resetRegistration()
+{
+    qInfo() << "[Wireguard] Resetting registration state.";
+    m_isRegistered = false;
+    m_virtualIp    = "";
+    m_serverPublicKey = "47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8="; // Fallback to initial
+    m_serverEndpoint = "107.172.34.199:51820";
+
+    save();
+    emit virtualIpChanged();
+    emit serverPublicKeyChanged();
+    emit serverEndpointChanged();
+    setStatus(Disconnected);
+}
+
+// ─── Identity ─────────────────────────────────────────────────────────────────
+
+void WireguardConfig::generateIdentity()
+{
+    emit requestKeyGeneration();
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 void WireguardConfig::copyToClipboard(const QString &text)
 {
@@ -175,9 +358,9 @@ void WireguardConfig::setStatus(int status)
     if (m_status != status) {
         m_status = status;
         emit statusChanged();
-        
+
         // Auto-save on successful connection to lock in working credentials
-        if (m_status == 2) {
+        if (m_status == Connected) {
             save();
             emit requestSystemReport();
         }

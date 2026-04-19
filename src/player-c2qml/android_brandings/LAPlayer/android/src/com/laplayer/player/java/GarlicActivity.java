@@ -20,6 +20,8 @@ package com.laplayer.player.java;
 
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -350,8 +352,17 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 1024) {
             if (resultCode == RESULT_OK) {
-                Log.i("GarlicActivity", "VPN permission GRANTED by user");
-                startVpnInternal();
+                Log.i("GarlicActivity", "VPN permission GRANTED by user — waiting 600ms for OS to commit...");
+                // KEY FIX: Delay the service start by 600ms so Android has time
+                // to fully commit the VPN permission grant before GoBackend.establish()
+                // is called. Without this, GoBackend races against the system and fails.
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.i("GarlicActivity", "Delay complete — calling startVpnInternal()");
+                        startVpnInternal();
+                    }
+                }, 600);
             } else {
                 Log.e("GarlicActivity", "VPN permission DENIED by user");
                 try { notifyVpnError("VPN permission denied by user"); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnError JNI not linked"); }
