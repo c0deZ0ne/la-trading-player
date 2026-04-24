@@ -10,7 +10,12 @@ else
 	export GIT_DIR=$WORKSPACE/
 fi
 COMMIT_NUMBER=`git --git-dir="$GIT_DIR.git" rev-list --all --count`
-VERSION_NAME=`git --git-dir="$GIT_DIR.git" describe --tags $(git --git-dir="$GIT_DIR.git" rev-list --tags --max-count=1)`
+LATEST_TAG=$(git --git-dir="$GIT_DIR.git" rev-list --tags --max-count=1)
+if [ -z "$LATEST_TAG" ]; then
+    VERSION_NAME="v0.0.0"
+else
+    VERSION_NAME=`git --git-dir="$GIT_DIR.git" describe --tags $LATEST_TAG`
+fi
 
 export GARLIC_VERSION=${VERSION_NAME%%-*}.$COMMIT_NUMBER
 

@@ -77,15 +77,15 @@
         </intent-filter>
     </receiver>
 
-    <receiver android:name="com.sagiadinos.garlic.player.java.AdminReceiver"
-              android:label="Garlic Player Admin"
-              android:permission="android.permission.BIND_DEVICE_ADMIN">
-        <meta-data android:name="android.app.device_admin"
-                   android:resource="@xml/device_admin_receiver" />
-        <intent-filter>
-            <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-        </intent-filter>
-    </receiver>
+    <!-- <receiver android:name="com.sagiadinos.garlic.player.java.AdminReceiver"
++              android:label="Garlic Player Admin"
++              android:permission="android.permission.BIND_DEVICE_ADMIN">
++        <meta-data android:name="android.app.device_admin"
++                   android:resource="@xml/device_admin_receiver" />
++        <intent-filter>
++            <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
++        </intent-filter>
++    </receiver> -->
     <!-- For adding service(s) please check: https://wiki.qt.io/AndroidServices -->
   </application>
   <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29"/>

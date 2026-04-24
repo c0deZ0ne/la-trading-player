@@ -32,13 +32,14 @@ source $SCRIPTDIR/env.sh
 
 export ANDROID_ARCH="android"							# Qt >= 5.14 supports android multi-ABI builds have a look in pro-files
 export ANDROID_SDK_ROOT="C:/Users/Training/AppData/Local/Android/Sdk" 					 	# Your full basic path to your Android SDK tools do not use ~/ 
-export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk-bundle	  		# path to Google NDK use this NDK
+export ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/22.1.7171670	  		# path to Google NDK use this NDK
 export QT_MKSPEC=android-clang  								    # android-clang or android-g++
 
 #
-export JDK_PATH="C:/Program Files/Eclipse Adoptium/jdk-11.0.28.6-hotspot"					# you can use openjdk 11, too
+export JDK_PATH="C:/Program Files/OpenLogic/jdk-11.0.28.6-hotspot"					# you can use openjdk 11, too
 export JAVA_HOME=$JDK_PATH
 export PATH=$JAVA_HOME/bin:$PATH
+export PATH=$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin:$PATH
 
 # =====================================================
 
@@ -57,16 +58,18 @@ echo ========== prepare build
 echo 
 $QT_PATH_RUNTIME/bin/qmake -r -spec $QT_MKSPEC  $GARLIC_DIR/src/complete_c2qml.pro CONFIG+=$CONFIG_DEBUG_RELEASE CONFIG+=qml_$CONFIG_DEBUG_RELEASE
 
+MAKE=$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make.exe
+
 echo 
 echo ========== build 
 echo 
-make -j $DEV_JOBS --silent
+$MAKE -j $DEV_JOBS --silent
 
 echo 
 echo ========== pack apk with gradle 
 echo 
 rm -rf $BUILD_TARGET
-make INSTALL_ROOT=$BUILD_TARGET install || true
+$MAKE INSTALL_ROOT=$BUILD_TARGET install || true
 
 # this is for every ABI. If you want to use less uncomment the mathcin lines
 # $QT_PATH_RUNTIME/bin/qmake -install qinstall -exe bin/libgarlic-player_arm64-v8a.so ./player-c2qml/$BUILD_TARGET/libs/arm64-v8a/libgarlic-player_arm64-v8a.so
