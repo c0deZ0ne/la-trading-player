@@ -38,6 +38,31 @@ Rectangle {
         }
     }
 
+    // Connect to LibFacade signals for SaaS enrollment feedback
+    Connections {
+        target: LibFacade
+        onInitStarted: {
+            root.isConnecting = true
+            root.statusMessage = "Enrolling Device..."
+        }
+        onInitFailed: {
+            root.isConnecting = false
+            root.errorMessage = reason
+        }
+        onReadyForPlaying: {
+            root.isSuccess = true
+            root.isConnecting = false
+            // After 2 seconds, accept the dialog to start playback
+            closeTimer.start()
+        }
+    }
+
+    Timer {
+        id: closeTimer
+        interval: 2000
+        onTriggered: root.accepted()
+    }
+
     // Improved Responsive Logic
     readonly property bool isMobile: Screen.primaryOrientation === Qt.PortraitOrientation || root.width < 600
     
@@ -158,8 +183,9 @@ Rectangle {
                                 text: root.playerName
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: root.fieldHeight
-                                color: "white"
+                                placeholderText: "Enter Device Name"
                                 font.pixelSize: root.baseFontSize
+                                color: "white"
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
@@ -185,6 +211,44 @@ Rectangle {
                             }
                         }
 
+
+                        // SaaS Enrollment Token (Manual Provisioning)
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 20
+                            Layout.rightMargin: 20
+                            
+                            TextField {
+                                id: tokenInput
+                                text: LibFacade.vpnConfig ? LibFacade.vpnConfig.enrollmentToken : ""
+                                placeholderText: "Enter 6-char Code"
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: root.fieldHeight
+                                color: "white"
+                                font.pixelSize: root.baseFontSize
+                                verticalAlignment: TextInput.AlignVCenter
+                                leftPadding: 15
+                                topPadding: 20
+                                background: Rectangle {
+                                    color: "#252525"
+                                    radius: 8
+                                    border.color: tokenInput.activeFocus ? "#ffff00" : "#333333"
+                                    border.width: tokenInput.activeFocus ? 2 : 1
+                                    
+                                    Text {
+                                        text: "PAIRING CODE"
+                                        color: "#ffff00"
+                                        font.pixelSize: root.smallFontSize * 0.8
+                                        font.weight: Font.Bold
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.leftMargin: 15
+                                        anchors.topMargin: 6
+                                    }
+                                }
+                                onTextChanged: if (LibFacade.vpnConfig) LibFacade.vpnConfig.enrollmentToken = text
+                            }
+                        }
 
                         // URL Input
                         ColumnLayout {
@@ -223,7 +287,7 @@ Rectangle {
                             }
                         }
 
-                        // Action Button
+                        // Unified Action Button
                         Button {
                             id: actionBtn
                             text: "PAIR DEVICE"
@@ -246,13 +310,16 @@ Rectangle {
                                 radius: 8
                                 opacity: actionBtn.enabled ? 1.0 : 0.5
                             }
-                            enabled: !root.isConnecting && !root.isSuccess
+                            enabled: !root.isConnecting && !root.isSuccess && tokenInput.text.length >= 6
                             onClicked: {
                                 root.isConnecting = true
                                 root.errorMessage = ""
-                                root.accepted()
+                                if (LibFacade) {
+                                    LibFacade.enrollDevice(tokenInput.text, urlInput.text)
+                                }
                             }
                         }
+
 
                         // VPN SETUP Button
                         Button {

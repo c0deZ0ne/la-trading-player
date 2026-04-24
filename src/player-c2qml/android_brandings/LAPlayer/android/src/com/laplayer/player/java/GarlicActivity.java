@@ -44,6 +44,16 @@ import android.util.Log;
 import java.util.concurrent.ExecutionException;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
+import android.content.pm.PackageInstaller;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import android.content.BroadcastReceiver;
 
 
 public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity
@@ -70,6 +80,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     {
         m_instance = this;
         super.onCreate(savedInstanceState);
+
+        handleIntent(getIntent());
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
@@ -124,6 +136,22 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         }
 
         hideSystemUI();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent == null) return;
+        String updateUrl = intent.getStringExtra("updateUrl");
+        if (updateUrl != null && !updateUrl.isEmpty()) {
+            Log.i("GarlicActivity", "Internal Intent Triggered OTA: " + updateUrl);
+            downloadAndInstall(updateUrl);
+        }
     }
 
     @Override
@@ -415,6 +443,184 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         startActivity(intent);
     }
 
+    public void downloadAndInstall(final String urlString) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.i("GarlicActivity", "Starting Resumable OTA Download: " + urlString);
+                    File outputFile = new File(getExternalFilesDir(null), "update.apk");
+                    long existingSize = 0;
+                    if (outputFile.exists()) {
+                        existingSize = outputFile.length();
+                        Log.i("GarlicActivity", "Partial download found: " + existingSize + " bytes");
+                    }
+
+                    URL url = new URL(urlString);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setConnectTimeout(15000);
+                    connection.setReadTimeout(60000);
+
+                    // Set Range header if we have partial file
+                    if (existingSize > 0) {
+                        connection.setRequestProperty("Range", "bytes=" + existingSize + "-");
+                    }
+
+                    connection.connect();
+
+                    int responseCode = connection.getResponseCode();
+                    Log.i("GarlicActivity", "HTTP Response Code: " + responseCode);
+
+                    boolean isResume = (responseCode == HttpURLConnection.HTTP_PARTIAL);
+                    boolean isNew = (responseCode == HttpURLConnection.HTTP_OK);
+
+                    if (!isResume && !isNew) {
+                        Log.e("GarlicActivity", "Server does not support resume or returned error: " + responseCode);
+                        // If 416 (Requested Range Not Satisfiable), just delete and restart
+                        if (responseCode == 416) {
+                            outputFile.delete();
+                            downloadAndInstall(urlString);
+                            return;
+                        }
+                        return;
+                    }
+
+                    long totalToDownload = connection.getContentLength();
+                    Log.i("GarlicActivity", "Content-Length to download: " + totalToDownload);
+
+                    long totalRead = isResume ? existingSize : 0;
+                    long finalTotal = isResume ? (totalToDownload + existingSize) : totalToDownload;
+
+                    try (InputStream input = connection.getInputStream();
+                         OutputStream output = new FileOutputStream(outputFile, isResume)) {
+                        byte[] data = new byte[16384];
+                        int count;
+                        while ((count = input.read(data)) != -1) {
+                            output.write(data, 0, count);
+                            totalRead += count;
+                            // Log progress and notify UI every 1MB
+                            if (totalRead % (1024 * 1024) < 16384 || totalRead == finalTotal) {
+                                Log.i("GarlicActivity", "Download progress: " + (totalRead / 1024) + " KB");
+                                try {
+                                    notifyOtaProgress(totalRead, finalTotal);
+                                } catch (UnsatisfiedLinkError e) {
+                                    // JNI not linked yet, ignore
+                                }
+                            }
+                        }
+                        output.flush();
+                        Log.i("GarlicActivity", "Download finished. Total size on disk: " + outputFile.length());
+                    }
+
+                    // PROFESSIONAL VERIFICATION: Match exact byte count from Content-Length header
+                    if (finalTotal > 0 && outputFile.length() == finalTotal) {
+                        Log.i("GarlicActivity", "Download verified against server headers. Starting install...");
+                        performSilentInstall(outputFile.getAbsolutePath());
+                    } else {
+                        Log.e("GarlicActivity", "Download verification FAILED. Size on disk: " + outputFile.length() + " Expected from server: " + finalTotal);
+                    }
+
+                } catch (Exception e) {
+                    Log.e("GarlicActivity", "OTA Download error: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
+
+    public void installApk(final String apkPath) {
+        Log.i("GarlicActivity", "installApk() called from C++: " + apkPath);
+        performSilentInstall(apkPath);
+    }
+
+    private void performSilentInstall(final String apkPath) {
+        // Strategy 1: DevicePolicyManager silent install (works if app is Device Owner)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+                if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
+                    Log.i("GarlicActivity", "Device Owner detected — using DPM silent install");
+                    PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
+                    PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                            PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+
+                    int sessionId = packageInstaller.createSession(params);
+                    PackageInstaller.Session session = packageInstaller.openSession(sessionId);
+
+                    try (OutputStream out = session.openWrite("OTA_UPDATE", 0, -1);
+                         java.io.InputStream in = new FileInputStream(apkPath)) {
+                        byte[] buffer = new byte[65536];
+                        int c;
+                        while ((c = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, c);
+                        }
+                        session.fsync(out);
+                    }
+
+                    Intent broadcastIntent = new Intent(getApplicationContext(), InstallationReceiver.class);
+                    PendingIntent pi = PendingIntent.getBroadcast(
+                            getApplicationContext(), sessionId, broadcastIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                    session.commit(pi.getIntentSender());
+                    session.close();
+                    Log.i("GarlicActivity", "DPM install session committed.");
+                    return;
+                }
+            } catch (Exception e) {
+                Log.e("GarlicActivity", "DPM install failed, falling back to intent: " + e.getMessage());
+            }
+        }
+
+        // Strategy 2: ACTION_VIEW intent — temporarily suspend kiosk so installer UI can surface
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.i("GarlicActivity", "Suspending Kiosk for OTA install prompt...");
+                    stopKioskMode();
+
+                    // Using FileProvider required for Android 7+ (API 24+) to avoid FileUriExposedException
+                    android.net.Uri apkUri = androidx.core.content.FileProvider.getUriForFile(
+                            getApplicationContext(),
+                            getPackageName() + ".fileprovider",
+                            new File(apkPath));
+
+                    Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                    installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                    installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(installIntent);
+
+                    Log.i("GarlicActivity", "Install intent launched. Kiosk will resume after install.");
+                } catch (Exception e) {
+                    Log.e("GarlicActivity", "Install intent failed: " + e.getMessage());
+                    // Re-enable kiosk if intent failed
+                    startKioskMode();
+                }
+            }
+        });
+    }
+
+
+
+    public static class InstallationReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+            String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+            Log.i("GarlicActivity", "Installation Result: Status=" + status + ", Message=" + message);
+
+            if (status == PackageInstaller.STATUS_SUCCESS) {
+                Log.i("GarlicActivity", "UPDATE SUCCESSFUL. OS will restart the app.");
+            } else {
+                Log.e("GarlicActivity", "UPDATE FAILED: " + message);
+            }
+        }
+    }
+
     public static native void notifyVpnStateChanged(int state);
     public static native void notifyVpnError(String message);
+    public static int getVpnState() {
+        return GarlicVpnService.getVpnState();
+    }
+    public static native void notifyOtaProgress(long received, long total);
 }

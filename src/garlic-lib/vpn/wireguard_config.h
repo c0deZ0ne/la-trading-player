@@ -5,6 +5,7 @@
 #include <QString>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QTimer>
 #include "tools/i_main_configuration.hpp"
 
 class WireguardConfig : public QObject
@@ -17,7 +18,7 @@ class WireguardConfig : public QObject
     Q_PROPERTY(QString virtualIp READ getVirtualIp WRITE setVirtualIp NOTIFY virtualIpChanged)
     Q_PROPERTY(QString allowedIps READ getAllowedIps WRITE setAllowedIps NOTIFY allowedIpsChanged)
     Q_PROPERTY(bool isEnabled READ getIsEnabled WRITE setIsEnabled NOTIFY isEnabledChanged)
-    Q_PROPERTY(int status READ getStatus NOTIFY statusChanged)
+    Q_PROPERTY(VpnStatus status READ getStatus NOTIFY statusChanged)
     Q_PROPERTY(QString errorMessage READ getErrorMessage WRITE setErrorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(QString playerName READ getPlayerName NOTIFY playerNameChanged)
     Q_PROPERTY(QString enrollmentToken READ getEnrollmentToken WRITE setEnrollmentToken NOTIFY enrollmentTokenChanged)
@@ -60,8 +61,11 @@ public:
     QString getPrivateKey() const;
     void setPrivateKey(const QString &value);
 
-    int getStatus() const;
-    void setStatus(int status);
+    VpnStatus getStatus() const;
+    void setStatus(VpnStatus status);
+
+    bool getIsRegistered() const;
+    void setIsRegistered(bool value);
 
     QString getErrorMessage() const;
     Q_INVOKABLE void setErrorMessage(const QString &value);
@@ -87,6 +91,7 @@ public slots:
     // NEW: Zero-touch auto-registration slots
     void performHandshake();
     void resetRegistration();
+    void checkOtaUpdate();
 
 signals:
     void publicKeyChanged();
@@ -106,9 +111,12 @@ signals:
     void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
     void requestSystemReport();
+    void requestOtaDownload(QString url);
 
 private slots:
     void handleRegistrationResponse(QNetworkReply *reply);
+
+    void handleReconnect();
 
 private:
     IMainConfiguration *m_mainConfig;
@@ -119,7 +127,7 @@ private:
     QString m_virtualIp;
     QString m_allowedIps;
     bool m_isEnabled;
-    int m_status;
+    VpnStatus m_status;
     QString m_errorMessage;
 
     // Auto-registration state
@@ -129,6 +137,9 @@ private:
     QNetworkAccessManager *m_networkManager;
 
     bool isConfigComplete() const;
+    QTimer *m_otaTimer;
+    QTimer *m_reconnectTimer;
+    void handleOtaResponse(QNetworkReply *reply);
 };
 
 #endif // WIREGUARDCONFIG_H

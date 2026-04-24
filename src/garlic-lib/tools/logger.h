@@ -26,9 +26,18 @@
 #include <iostream>
 #include <mutex>
 
-#include "main_configuration.hpp"
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QTimer>
+#include <QQueue>
+
 #include "log_file.h"
 #include "logging_categories.h"
+#include "i_main_configuration.hpp"
 
 class ResourceMonitor;
 
@@ -48,6 +57,7 @@ class Logger : public QObject
                  QString                  createEventLogMetaData(QString event_name, QStringList meta_data);
                  void                     rotateLog(QString log_name);
                  QString                  getCurrentIsoDateTime();
+                 void                     setConfiguration(IMainConfiguration *config);
     protected:
                  ResourceMonitor          *MyResourceMonitor = nullptr;
                  QScopedPointer<LogFile>  qtdebug_log, debug_log, play_log, event_log, task_execution_log;
@@ -64,6 +74,16 @@ class Logger : public QObject
           static Logger         *instance;
           static std::once_flag  initInstanceFlag;
           static void            initSingleton();
+
+          // Remote Logging
+          IMainConfiguration    *m_config = nullptr;
+          QQueue<QString>        m_logBuffer;
+          QNetworkAccessManager *m_networkManager = nullptr;
+          QTimer                *m_uploadTimer = nullptr;
+          const int              MAX_BUFFER_SIZE = 100;
+          
+          void                   addToBuffer(const QString &line);
+          void                   triggerUpload();
 };
 
 #endif // LOGGER_H

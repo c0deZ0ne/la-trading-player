@@ -25,19 +25,19 @@
 #include "lib_facade.h"
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// C++ Linkage members
+extern LibFacade *GlobalLibfacede;
 
-// Todo: find a better solution
-LibFacade *GlobalLibfacede;
-
-void setGlobalLibFaceForJava(LibFacade *glf)
+inline void setGlobalLibFaceForJava(LibFacade *glf)
 {
     GlobalLibfacede = glf;
 }
 
-JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_ConfigReceiver_getConfigPath(
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+inline JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_ConfigReceiver_getConfigPath(
         JNIEnv *env /*env*/,
         jobject /*this_obj*/,
         jstring path)
@@ -47,7 +47,7 @@ JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_ConfigReceiver_get
 
 }
 
-JNIEXPORT void JNICALL Java_com_laplayer_player_java_ConfigReceiver_getConfigPath(
+inline JNIEXPORT void JNICALL Java_com_laplayer_player_java_ConfigReceiver_getConfigPath(
         JNIEnv *env /*env*/,
         jobject /*this_obj*/,
         jstring path)
@@ -56,7 +56,7 @@ JNIEXPORT void JNICALL Java_com_laplayer_player_java_ConfigReceiver_getConfigPat
 }
 
 // needed when you have local index on usb for
-JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_getSmilIndexPath(
+inline JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_getSmilIndexPath(
         JNIEnv *env /*env*/,
         jobject /*this_obj*/,
         jstring path)
@@ -65,12 +65,23 @@ JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_
     GlobalLibfacede->reloadWithNewIndex(str);
 }
 
-JNIEXPORT void JNICALL Java_com_laplayer_player_java_SmilIndexReceiver_getSmilIndexPath(
+inline JNIEXPORT void JNICALL Java_com_laplayer_player_java_SmilIndexReceiver_getSmilIndexPath(
         JNIEnv *env /*env*/,
         jobject /*this_obj*/,
         jstring path)
 {
     Java_com_sagiadinos_garlic_player_java_SmilIndexReceiver_getSmilIndexPath(env, NULL, path);
+}
+
+inline JNIEXPORT void JNICALL Java_com_laplayer_player_java_GarlicActivity_notifyOtaProgress(
+        JNIEnv *env /*env*/,
+        jobject /*this_obj*/,
+        jlong received,
+        jlong total)
+{
+    if (GlobalLibfacede != nullptr) {
+        GlobalLibfacede->notifyOtaProgress((qint64)received, (qint64)total);
+    }
 }
 
 

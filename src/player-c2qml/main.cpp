@@ -16,6 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include "wrapper_settings.hpp"
 #include <QTimer>
 #include "vpn/wireguard_config.h"
@@ -34,6 +35,7 @@
 #include <QtWebView>
 #include "mainwindow.h"
 #include "rest_api/httpd.h"
+#include "tools/remote_management_manager.h"
 
 void handleMessages(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -77,6 +79,9 @@ int main(int argc, char *argv[])
     MainConfiguration *MyMainConfiguration   = new MainConfiguration(new WrapperSettings());
     MyMainConfiguration->init();
     MyMainConfiguration->createDirectories();
+    
+    // Inject configuration into logger for remote uploads
+    Logger::getInstance().setConfiguration(MyMainConfiguration);
 
 	qInstallMessageHandler(handleMessages); // must set after createDiretories
 
@@ -138,14 +143,36 @@ int main(int argc, char *argv[])
     });
 
     QObject::connect(MyAndroidManager, &AndroidManager::vpnStatusChanged, vpnConfig, [vpnConfig](int status) {
-        vpnConfig->setStatus(status);
+        vpnConfig->setStatus(static_cast<WireguardConfig::VpnStatus>(status));
     });
+
+    // Initialize the starting state with robust retries (Service might still be booting)
+    auto syncInitialState = [MyAndroidManager, vpnConfig]() {
+        int state = MyAndroidManager->getVpnState();
+        if (state != 0) {
+            qInfo() << "[Wireguard][CPP] Restoring initial VPN state from Android Service:" << state;
+            vpnConfig->setStatus(static_cast<WireguardConfig::VpnStatus>(state));
+            return true;
+        }
+        return false;
+    };
+
+    if (!syncInitialState()) {
+        // Try again at 2s and 5s
+        QTimer::singleShot(2000, vpnConfig, [syncInitialState]() { syncInitialState(); });
+        QTimer::singleShot(5000, vpnConfig, [syncInitialState]() { syncInitialState(); });
+    }
 
     QObject::connect(MyAndroidManager, &AndroidManager::vpnError, vpnConfig, &WireguardConfig::setVpnError);
 
     QObject::connect(vpnConfig, &WireguardConfig::requestSystemReport, [MyLibFacade]() {
         qDebug() << "[Wireguard][REPORT] VPN Connected. Triggering immediate system report...";
         MyLibFacade->forceSystemReport();
+    });
+
+    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url) {
+        qDebug() << "[Wireguard][OTA] OTA Download requested via signal. URL:" << url;
+        MyAndroidManager->triggerOtaDownload(url);
     });
     
     // Auto-start VPN if enabled (Non-blocking)
@@ -156,6 +183,10 @@ int main(int argc, char *argv[])
             vpnConfig->startVpn();
         });
     }
+
+    // Start Remote Management Agent (for Shell, FS, and OTA access)
+    auto *remoteMgmt = new RemoteManagementManager(&app);
+    remoteMgmt->start(3006);
 #endif
 
     MyPlayerConfiguration->printVersionInformation();
@@ -184,6 +215,9 @@ int main(int argc, char *argv[])
     MainWindow w(&MyScreen, MyLibFacade, MyPlayerConfiguration);
 
     QQmlEngine::setObjectOwnership(&w, QQmlEngine::CppOwnership);
+
+    // NEW: Expose the LIVE instance to QML for real-time progress reporting
+    w.rootContext()->setContextProperty("LibFacade", MyLibFacade);
 
     // Show config dialog if:
     // 1. Index URI is empty OR

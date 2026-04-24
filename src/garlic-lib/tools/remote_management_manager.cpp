@@ -1,0 +1,212 @@
+#include "remote_management_manager.h"
+#include <QDebug>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QStandardPaths>
+#include <QFile>
+#include <QDir>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include "lib_facade.h"
+#ifdef Q_OS_ANDROID
+#include <QtAndroid>
+#include <QAndroidJniObject>
+#include <QAndroidJniEnvironment>
+#endif
+
+RemoteManagementManager::RemoteManagementManager(QObject *parent) : QObject(parent)
+{
+    m_server = new QTcpServer(this);
+}
+
+void RemoteManagementManager::start(quint16 port)
+{
+    if (m_server->listen(QHostAddress::Any, port)) {
+        qDebug() << "[RemoteMgmt] Listener started on port" << port;
+    } else {
+        qCritical() << "[RemoteMgmt] FAILED to start listener:" << m_server->errorString();
+    }
+    connect(m_server, &QTcpServer::newConnection, this, &RemoteManagementManager::onNewConnection);
+}
+
+void RemoteManagementManager::onNewConnection()
+{
+    QTcpSocket *socket = m_server->nextPendingConnection();
+    qDebug() << "[RemoteMgmt] New connection from" << socket->peerAddress().toString();
+    connect(socket, &QTcpSocket::readyRead, this, &RemoteManagementManager::onReadyRead);
+    connect(socket, &QTcpSocket::disconnected, this, &RemoteManagementManager::onDisconnected);
+}
+
+void RemoteManagementManager::onReadyRead()
+{
+    QTcpSocket *socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
+
+    QByteArray data = socket->readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) {
+        socket->write("{\"error\": \"Invalid JSON\"}");
+        return;
+    }
+
+    handleCommand(socket, doc.object());
+}
+
+void RemoteManagementManager::handleCommand(QTcpSocket *socket, const QJsonObject &command)
+{
+    QString type = command["type"].toString();
+    qDebug() << "[RemoteMgmt] Processing command:" << type;
+
+    QJsonObject resp;
+    if (type == "PING") {
+        resp["status"] = "PONG";
+        sendResponse(socket, resp);
+    } else if (type == "SHELL_EXEC") {
+        // Support both "cmd" and "command" keys
+        QString cmd = command.contains("command") ? command["command"].toString() : command["cmd"].toString();
+        handleShellExec(socket, cmd);
+    } else if (type == "FILE_LS") {
+        handleFileLs(socket, command["path"].toString());
+    } else if (type == "OTA_UPDATE") {
+        handleOtaUpdate(socket, command["url"].toString());
+    } else if (type == "SET_CONFIG") {
+        handleSetConfig(socket, command["config"].toObject());
+    } else {
+        resp["error"] = "Unknown command type";
+        sendResponse(socket, resp);
+    }
+}
+
+void RemoteManagementManager::sendResponse(QTcpSocket *socket, const QJsonObject &response)
+{
+    if (!socket || socket->state() != QAbstractSocket::ConnectedState) return;
+
+    QByteArray data = QJsonDocument(response).toJson(QJsonDocument::Compact);
+    socket->write(data);
+    socket->flush();
+    socket->disconnectFromHost();
+    qDebug() << "[RemoteMgmt] Response sent and socket disconnecting...";
+}
+
+void RemoteManagementManager::handleShellExec(QTcpSocket *socket, const QString &cmd)
+{
+    qDebug() << "[RemoteMgmt] Executing shell:" << cmd;
+    QProcess process;
+    process.start("sh", QStringList() << "-c" << cmd);
+    process.waitForFinished(10000); // Increased to 10s for heavy commands
+
+    QJsonObject resp;
+    resp["status"] = "OK";
+    resp["stdout"] = QString::fromUtf8(process.readAllStandardOutput());
+    resp["stderr"] = QString::fromUtf8(process.readAllStandardError());
+    resp["exitCode"] = process.exitCode();
+    sendResponse(socket, resp);
+}
+
+void RemoteManagementManager::handleFileLs(QTcpSocket *socket, const QString &path)
+{
+    QDir dir(path);
+    QJsonObject resp;
+    if (!dir.exists()) {
+        resp["error"] = "Directory not found";
+    } else {
+        QJsonArray files;
+        for (const QFileInfo &info : dir.entryInfoList()) {
+            QJsonObject f;
+            f["name"] = info.fileName();
+            f["size"] = info.size();
+            f["isDir"] = info.isDir();
+            files.append(f);
+        }
+        resp["files"] = files;
+    }
+    sendResponse(socket, resp);
+}
+
+void RemoteManagementManager::handleSetConfig(QTcpSocket *socket, const QJsonObject &config)
+{
+    qDebug() << "[RemoteMgmt] Setting new config:" << config;
+    
+    bool changed = false;
+    if (config.contains("playlistUrl")) {
+        QString newUrl = config["playlistUrl"].toString();
+        LibFacade *facade = qobject_cast<LibFacade*>(parent());
+        if (facade) {
+            facade->reloadWithNewIndex(newUrl);
+            changed = true;
+        }
+    }
+
+    QJsonObject resp;
+    resp["status"] = changed ? "OK" : "ERROR";
+    if (!changed) resp["error"] = "Failed to update config or LibFacade missing";
+    sendResponse(socket, resp);
+}
+
+void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QString &url)
+{
+    qDebug() << "[OTA] Starting update from:" << url;
+    
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QNetworkRequest request(url);
+    QNetworkReply *reply = manager->get(request);
+
+    // Get reference to LibFacade for progress reporting
+    extern LibFacade *GlobalLibfacede;
+
+    connect(reply, &QNetworkReply::downloadProgress, [socket, reply, this](qint64 received, qint64 total) {
+        if (GlobalLibfacede) {
+            GlobalLibfacede->notifyOtaProgress(received, total);
+        }
+        
+        QJsonObject progress;
+        progress["type"] = "OTA_PROGRESS";
+        progress["received"] = received;
+        progress["total"] = total;
+        sendResponse(socket, progress);
+    });
+
+    connect(reply, &QNetworkReply::finished, [socket, reply, manager, this, url]() {
+        // Clear progress on UI
+        if (GlobalLibfacede) {
+            GlobalLibfacede->notifyOtaProgress(0, 0);
+        }
+
+        if (reply->error() == QNetworkReply::NoError) {
+            QString path = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/update.apk";
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(reply->readAll());
+                file.close();
+                
+                QJsonObject resp;
+                resp["status"] = "DOWNLOAD_COMPLETE";
+                resp["path"] = path;
+                sendResponse(socket, resp);
+
+                // Trigger Android Install via Java Bridge
+                #if defined Q_OS_ANDROID
+                QAndroidJniObject jPath = QAndroidJniObject::fromString(path);
+                QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/laplayer/player/java/GarlicActivity", "getInstance", "()Lcom/laplayer/player/java/GarlicActivity;");
+                if (MyActivity.isValid()) {
+                    MyActivity.callMethod<void>("installApk", "(Ljava/lang/String;)V", jPath.object<jstring>());
+                }
+                #endif
+            }
+        } else {
+            QJsonObject err;
+            err["status"] = "ERROR";
+            err["message"] = reply->errorString();
+            sendResponse(socket, err);
+        }
+        reply->deleteLater();
+        manager->deleteLater();
+    });
+}
+
+void RemoteManagementManager::onDisconnected()
+{
+    QTcpSocket *socket = qobject_cast<QTcpSocket*>(sender());
+    if (socket) socket->deleteLater();
+}

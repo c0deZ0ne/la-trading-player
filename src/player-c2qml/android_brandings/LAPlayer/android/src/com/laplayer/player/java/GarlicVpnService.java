@@ -28,6 +28,19 @@ public class GarlicVpnService extends VpnService implements Tunnel {
     private static GarlicVpnService instance;
     private ExecutorService executorService;
 
+    public static int getVpnState() {
+        if (instance != null && instance.backend != null) {
+            try {
+                Tunnel.State state = instance.backend.getState(instance);
+                if (state == Tunnel.State.UP) return 2; // Connected
+                if (state == Tunnel.State.DOWN) return 0; // Disconnected
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting VPN state", e);
+            }
+        }
+        return 0;
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -99,6 +112,13 @@ public class GarlicVpnService extends VpnService implements Tunnel {
             @Override
             public void run() {
                 try {
+                    // If already UP, notify UI immediately to ensure sync
+                    if (backend != null && backend.getState(GarlicVpnService.this) == Tunnel.State.UP) {
+                        Log.i(TAG, "startVpn: VPN already UP. Manually triggering state notification (2).");
+                        GarlicActivity.notifyVpnStateChanged(2);
+                        // We still continue to ensure any config updates are applied
+                    }
+
                     String privateKey = intent.getStringExtra("privateKey");
                     String address = intent.getStringExtra("address");
                     String serverPubKey = intent.getStringExtra("serverPubKey");
@@ -181,41 +201,7 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
                     Log.i(TAG, "Applying WireGuard configuration via GoBackend...");
                     backend.setState(GarlicVpnService.this, Tunnel.State.UP, config);
-                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Awaiting handshake...");
-
-                    GarlicActivity.notifyVpnStateChanged(1); // Connecting
-
-                    boolean handshakeSuccessful = false;
-                    Log.i(TAG, "Awaiting handshake (up to 30s)...");
-                    for (int i = 0; i < 30; i++) {
-                        Thread.sleep(1000);
-                        Statistics stats = backend.getStatistics(GarlicVpnService.this);
-                        if (stats != null) {
-                            long rx = 0;
-                            long tx = 0;
-                            try {
-                                rx = stats.totalRx();
-                                tx = stats.totalTx();
-                                Log.d(TAG, "Handshake attempt " + (i + 1) + ": Tx=" + tx + " B, Rx=" + rx + " B");
-
-                                // Successful handshake usually results in >0 Rx bytes from the peer
-                                if (rx > 0) {
-                                    handshakeSuccessful = true;
-                                    break;
-                                }
-                            } catch (Exception ignore) {
-                            }
-                        }
-                    }
-
-                    if (handshakeSuccessful) {
-                        Log.i(TAG, "WireGuard Handshake verified successfully.");
-                        GarlicActivity.notifyVpnStateChanged(2); // Connected
-                    } else {
-                        backend.setState(GarlicVpnService.this, Tunnel.State.DOWN, null);
-                        throw new Exception(
-                                "Timeout: No handshake response from VPN Server after 30 seconds. Verify that Server Public Key is correct and that the server has this device registered.");
-                    }
+                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Handshake will be verified via onStateChange.");
 
                 } catch (final Exception e) {
                     final String msg = "VPN Failure: " + e.getMessage();
@@ -274,14 +260,49 @@ public class GarlicVpnService extends VpnService implements Tunnel {
         return "GarlicVPN";
     }
 
+    private boolean m_isMonitoringHandshake = false;
+
     @Override
     public void onStateChange(State newState) {
+        Log.i(TAG, "onStateChange: newState=" + newState);
         if (newState == State.DOWN) {
-            Log.i(TAG, "VPN State changed to DOWN -> notifying UI error/disconnect status (0)");
+            Log.i(TAG, "VPN State changed to DOWN -> notifying UI (0)");
             GarlicActivity.notifyVpnStateChanged(0);
-        } else {
-            Log.i(TAG, "VPN State changed to UP -> awaiting handshake validation in executor loop.");
+        } else if (newState == State.UP) {
+            Log.i(TAG, "VPN State changed to UP -> triggering handshake verification...");
+            verifyHandshakeAsync();
         }
+    }
+
+    private void verifyHandshakeAsync() {
+        if (m_isMonitoringHandshake) return;
+        
+        executorService.submit(new Runnable() {
+            @Override
+            public void run() {
+                m_isMonitoringHandshake = true;
+                try {
+                    Log.i(TAG, "Monitoring handshake...");
+                    for (int i = 0; i < 15; i++) {
+                        Thread.sleep(2000);
+                        Statistics stats = backend.getStatistics(GarlicVpnService.this);
+                        if (stats != null && stats.totalRx() > 0) {
+                            Log.i(TAG, "Handshake verified via monitor loop.");
+                            GarlicActivity.notifyVpnStateChanged(2); // Connected
+                            m_isMonitoringHandshake = false;
+                            return;
+                        }
+                    }
+                    Log.w(TAG, "Monitor loop finished without handshake verification. Forcing DOWN.");
+                    backend.setState(GarlicVpnService.this, Tunnel.State.DOWN, null);
+                    GarlicActivity.notifyVpnStateChanged(0);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in verifyHandshakeAsync: " + e.getMessage());
+                } finally {
+                    m_isMonitoringHandshake = false;
+                }
+            }
+        });
     }
 
     public static String[] generateKeyPair() {

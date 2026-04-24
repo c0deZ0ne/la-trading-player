@@ -17,6 +17,7 @@
 *************************************************************************************/
 #include "logger.h"
 #include "resource_monitor.h"
+#include "main_configuration.hpp"
 
 Logger* Logger::instance= nullptr;
 std::once_flag Logger::initInstanceFlag;
@@ -29,6 +30,12 @@ Logger::Logger(QObject *parent) : QObject(parent)
     event_log.reset(new LogFile(MainConfiguration::getLogDir() + "event_log.xml"));
     play_log.reset(new LogFile(MainConfiguration::getLogDir() + "play_log.xml"));
     task_execution_log.reset(new LogFile(MainConfiguration::getLogDir() + "task_execution_log.xml"));
+
+    m_networkManager = new QNetworkAccessManager(this);
+    m_uploadTimer = new QTimer(this);
+    m_uploadTimer->setInterval(60000); // Check every 60 seconds
+    connect(m_uploadTimer, &QTimer::timeout, this, &Logger::triggerUpload);
+    m_uploadTimer->start();
 }
 
 void Logger::initSingleton()
@@ -74,7 +81,14 @@ void Logger::dispatchMessages(QtMsgType type, const QMessageLogContext &context,
     }
     else
     {
-        debug_log.data()->write(collectDebugLog(type, context, msg));
+        QString line = collectDebugLog(type, context, msg);
+        debug_log.data()->write(line);
+        addToBuffer(line);
+        
+        // Critical messages trigger immediate upload
+        if (type >= QtCriticalMsg) {
+            triggerUpload();
+        }
     }
 }
 
@@ -151,4 +165,47 @@ QString Logger::determineSeverity(QtMsgType type)
             return "critical";
     }
     return "UNKNOWN";
+}
+
+void Logger::setConfiguration(IMainConfiguration *config)
+{
+    m_config = config;
+}
+
+void Logger::addToBuffer(const QString &line)
+{
+    m_logBuffer.enqueue(line);
+    while (m_logBuffer.size() > MAX_BUFFER_SIZE) {
+        m_logBuffer.dequeue();
+    }
+}
+
+void Logger::triggerUpload()
+{
+    if (!m_config || m_logBuffer.isEmpty()) return;
+
+    // Don't start a new upload if one is already in progress (simple throttle)
+    static bool isUploading = false;
+    if (isUploading) return;
+    isUploading = true;
+
+    QJsonObject json;
+    json["deviceId"] = m_config->getUuid();
+    
+    QJsonArray logs;
+    while (!m_logBuffer.isEmpty()) {
+        logs.append(m_logBuffer.dequeue());
+    }
+    json["logs"] = logs;
+
+    QUrl url("http://107.172.34.199:3005/api/v1/kiosk/logs");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QNetworkReply *reply = m_networkManager->post(request, QJsonDocument(json).toJson());
+    
+    connect(reply, &QNetworkReply::finished, [reply]() {
+        isUploading = false;
+        reply->deleteLater();
+    });
 }

@@ -10,14 +10,9 @@ Rectangle {
 
     property var backendConfig: vpnConfig
 
-    // Status Mapping
+    // Status Mapping (Unified Enum-based access)
     readonly property int vpnStatus: vpnRoot.backendConfig ? vpnRoot.backendConfig.status : 0
-    readonly property bool isConnecting: vpnStatus === 1
-    readonly property bool isConnected:  vpnStatus === 2
-    readonly property bool hasError:     vpnStatus === 3
-    readonly property bool isRegistering: vpnStatus === 4
     readonly property bool isRegistered: !!(vpnRoot.backendConfig && vpnRoot.backendConfig.virtualIp !== "")
-
     property string statusMessage: vpnRoot.backendConfig ? vpnRoot.backendConfig.errorMessage : ""
 
     signal cancel()
@@ -27,6 +22,75 @@ Rectangle {
     readonly property real cardHeight: isMobile ? vpnRoot.height : Math.min(vpnRoot.height * 0.95, 760)
 
     Component.onCompleted: if (vpnRoot.backendConfig) vpnRoot.backendConfig.load()
+
+    // ── Proper State Management ───────────────────────────────────────────────
+    state: {
+        if (!backendConfig) return "UNREGISTERED";
+        if (vpnStatus === backendConfig.Registering) return "REGISTERING";
+        if (vpnStatus === backendConfig.Error)       return "ERROR";
+        if (!isRegistered)                           return "UNREGISTERED";
+        if (vpnStatus === backendConfig.Connecting)  return "CONNECTING";
+        if (vpnStatus === backendConfig.Connected)   return "CONNECTED";
+        return "DISCONNECTED";
+    }
+
+    states: [
+        State {
+            name: "UNREGISTERED"
+            PropertyChanges { target: stage2; visible: true }
+            PropertyChanges { target: stage3; visible: false }
+            PropertyChanges { target: statusBanner; color: "#1a1a1a"; border.color: "#333" }
+            PropertyChanges { target: statusText; text: "READY TO ENROLL"; color: "white" }
+        },
+        State {
+            name: "REGISTERING"
+            PropertyChanges { target: stage2; visible: true }
+            PropertyChanges { target: stage3; visible: false }
+            PropertyChanges { target: statusBanner; color: "#1a1a1a"; border.color: "#ffff00" }
+            PropertyChanges { target: statusText; text: "NEGOTIATING…"; color: "#ffff00" }
+        },
+        State {
+            name: "DISCONNECTED"
+            PropertyChanges { target: stage2; visible: false }
+            PropertyChanges { target: stage3; visible: true }
+            PropertyChanges { target: connectBtn; visible: true }
+            PropertyChanges { target: disconnectBtn; visible: false }
+            PropertyChanges { target: statusBanner; color: "#1a1a1a"; border.color: "#333" }
+            PropertyChanges { target: statusText; text: "TUNNEL IDLE"; color: "white" }
+        },
+        State {
+            name: "CONNECTING"
+            PropertyChanges { target: stage2; visible: false }
+            PropertyChanges { target: stage3; visible: true }
+            PropertyChanges { target: connectBtn; visible: true; text: "CONNECTING…" }
+            PropertyChanges { target: disconnectBtn; visible: false }
+            PropertyChanges { target: statusBanner; color: "#1a1a3d"; border.color: "#00e5ff" }
+            PropertyChanges { target: statusText; text: "ESTABLISHING TUNNEL…"; color: "#00e5ff" }
+        },
+        State {
+            name: "CONNECTED"
+            PropertyChanges { target: stage2; visible: false }
+            PropertyChanges { target: stage3; visible: true }
+            PropertyChanges { target: connectBtn; visible: false }
+            PropertyChanges { target: disconnectBtn; visible: true }
+            PropertyChanges { target: statusBanner; color: "#1a3d1a"; border.color: "#00ff00" }
+            PropertyChanges { target: statusText; text: "✓ TUNNEL ENCRYPTED AND ACTIVE"; color: "#00ff00" }
+        },
+        State {
+            name: "ERROR"
+            PropertyChanges { target: stage2; visible: !isRegistered }
+            PropertyChanges { target: stage3; visible: isRegistered }
+            PropertyChanges { target: statusBanner; color: "#3d1a1a"; border.color: "#ff4444" }
+            PropertyChanges { target: statusText; text: "✕  " + vpnRoot.statusMessage; color: "#ff4444" }
+        }
+    ]
+
+    transitions: [
+        Transition {
+            from: "*"; to: "*"
+            ColorAnimation { duration: 250 }
+        }
+    ]
 
     // ── Main Card ─────────────────────────────────────────────────────────────
     Rectangle {
@@ -67,39 +131,31 @@ Rectangle {
             }
         }
 
-        // ── Status Banner (pinned footer — defined before ScrollView so anchors resolve) ──
+        // ── Status Banner (pinned footer) ──
         Rectangle {
             id: statusBanner
             height: 65
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                       leftMargin: 20; rightMargin: 20; bottomMargin: 20 }
             radius: 8
-            color:        vpnRoot.hasError    ? "#3d1a1a" : (vpnRoot.isConnected ? "#1a3d1a" : "#1a1a1a")
-            border.color: vpnRoot.hasError    ? "#ff4444" : (vpnRoot.isConnected ? "#00ff00" : "#333")
 
             RowLayout {
                 anchors { fill: parent; margins: 14 }
                 spacing: 12
 
                 BusyIndicator {
-                    running: vpnRoot.isRegistering || vpnRoot.isConnecting
+                    running: vpnRoot.state === "REGISTERING" || vpnRoot.state === "CONNECTING"
                     visible: running
                     Layout.preferredWidth: 24
                     Layout.preferredHeight: 24
                 }
 
                 Text {
-                    // FIX: wrapMode + maximumLineCount prevents vertical overflow
-                    text: vpnRoot.hasError      ? ("✕  " + vpnRoot.statusMessage) :
-                          vpnRoot.isConnected   ? "✓  TUNNEL ENCRYPTED" :
-                          (vpnRoot.isConnecting || vpnRoot.isRegistering) ? "NEGOTIATING…" :
-                          "READY TO ENROLL"
-
-                    color: vpnRoot.hasError ? "#ff4444" : (vpnRoot.isConnected ? "#00ff00" : "white")
+                    id: statusText
                     font { pixelSize: 12; weight: Font.Bold }
                     Layout.fillWidth: true
                     wrapMode: Text.NoWrap
-                    elide:    Text.ElideRight      // single-line clamp — no vertical blowout
+                    elide:    Text.ElideRight
                 }
             }
         }
@@ -115,25 +171,19 @@ Rectangle {
                 bottomMargin: 8
             }
             clip: true
-            // FIX: fix contentWidth to the available width so ColumnLayout
-            // never tries to expand horizontally, eliminating horizontal overflow.
             contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-            // FIX: Use a plain Item wrapper instead of anchoring ColumnLayout
-            // directly inside ScrollView — Qt does not support anchors on the
-            // immediate child of ScrollView's internal Flickable contentItem.
             Item {
                 width: contentScroll.availableWidth
+                height: vpnLayout.implicitHeight
 
                 ColumnLayout {
                     id: vpnLayout
-                    // FIX: bind width instead of using anchors
                     width: parent.width
-                    x: 0; y: 0
                     spacing: 22
 
-                    // ── STAGE 1: DEVICE IDENTITY ──────────────────────────────
+                    // ── STAGE 1: DEVICE IDENTITY (Always Visible) ─────────────
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: 20
@@ -159,21 +209,17 @@ Rectangle {
 
                                 RowLayout {
                                     spacing: 8
-
                                     ColumnLayout {
                                         Layout.fillWidth: true
                                         spacing: 2
-
                                         Text {
                                             text: vpnRoot.backendConfig ? vpnRoot.backendConfig.playerName : "UNKNOWN_DEVICE"
                                             color: "white"
                                             font { pixelSize: 17; weight: Font.Bold }
-                                            // FIX: clamp long device names
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
                                         }
                                         Text {
-                                            // FIX: truncate pub-key display to prevent overflow
                                             text: "ID: " + (vpnRoot.backendConfig ? vpnRoot.backendConfig.publicKey.substring(0, 20) + "…" : "---")
                                             color: "#888"
                                             font { pixelSize: 11; family: "Monospace" }
@@ -181,7 +227,6 @@ Rectangle {
                                             Layout.fillWidth: true
                                         }
                                     }
-
                                     Button {
                                         text: "COPY"
                                         flat: true
@@ -197,54 +242,25 @@ Rectangle {
                                             vpnRoot.backendConfig.copyToClipboard(vpnRoot.backendConfig.publicKey)
                                     }
                                 }
-
                                 Rectangle { height: 1; Layout.fillWidth: true; color: "#333" }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        text: "ENROLLMENT TOKEN (TENANT ASSET TAG)"
-                                        color: "#888"
-                                        font { pixelSize: 9; weight: Font.Bold }
-                                    }
-
-                                    TextField {
-                                        id: tokenInput
-                                        text: vpnRoot.backendConfig ? vpnRoot.backendConfig.enrollmentToken : ""
-                                        placeholderText: "Enter token…"
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 45
-                                        color: "#ffff00"
-                                        font { pixelSize: 13; family: "Monospace" }
-                                        leftPadding: 10
-                                        background: Rectangle {
-                                            color: "#121212"; radius: 6
-                                            border.color: tokenInput.activeFocus ? "#ffff00" : "#222"
-                                        }
-                                        onTextChanged: if (vpnRoot.backendConfig)
-                                            vpnRoot.backendConfig.enrollmentToken = text
-                                    }
-                                }
                             }
                         }
                     }
 
-                    // ── STAGE 2: ACTION ───────────────────────────────────────
+                    // ── STAGE 2: ACTION (Registration) ────────────────────────
                     ColumnLayout {
+                        id: stage2
                         Layout.fillWidth: true
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
                         spacing: 12
-                        visible: !vpnRoot.isConnected && !vpnRoot.isRegistered
 
                         Button {
                             id: registerBtn
                             text: "REGISTER & SECURE DEVICE"
                             Layout.fillWidth: true
                             Layout.preferredHeight: 55
-                            enabled: !vpnRoot.isConnecting && !vpnRoot.isRegistering
+                            enabled: vpnRoot.state === "UNREGISTERED" || vpnRoot.state === "ERROR"
 
                             contentItem: Text {
                                 text: registerBtn.text
@@ -252,7 +268,6 @@ Rectangle {
                                 font { weight: Font.Bold; pixelSize: 14 }
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment:   Text.AlignVCenter
-                                // FIX: scale down on very narrow screens
                                 elide: Text.ElideRight
                             }
                             background: Rectangle {
@@ -270,11 +285,11 @@ Rectangle {
 
                     // ── STAGE 3: NETWORK RESULTS ──────────────────────────────
                     ColumnLayout {
+                        id: stage3
                         Layout.fillWidth: true
                         Layout.leftMargin: 20
                         Layout.rightMargin: 20
                         spacing: 10
-                        visible: vpnRoot.isRegistered || vpnRoot.isConnected
 
                         Text {
                             text: "ASSIGNED CONNECTION"
@@ -318,13 +333,11 @@ Rectangle {
                             }
                         }
 
-                        // ── MANUAL CONNECT BUTTON ─────────────────────────────
-                        // Visible when registered but NOT yet tunnelling
+                        // ── ACTION BUTTONS ────────────────────────────────────
                         Button {
                             id: connectBtn
-                            text: vpnRoot.isConnecting ? "CONNECTING…" : "⬆  CONNECT TUNNEL"
-                            visible: vpnRoot.isRegistered && !vpnRoot.isConnected
-                            enabled: !vpnRoot.isConnecting && !vpnRoot.isRegistering
+                            text: "⬆  CONNECT TUNNEL"
+                            enabled: vpnRoot.state === "DISCONNECTED" || vpnRoot.state === "ERROR"
                             Layout.fillWidth: true
                             Layout.preferredHeight: 55
 
@@ -339,26 +352,19 @@ Rectangle {
                             background: Rectangle {
                                 color: connectBtn.enabled ? "#00e5ff" : "#1a3a3a"
                                 radius: 8
-                                // Pulse animation while connecting
                                 SequentialAnimation on opacity {
-                                    running:  vpnRoot.isConnecting
+                                    running:  vpnRoot.state === "CONNECTING"
                                     loops:    Animation.Infinite
                                     NumberAnimation { to: 0.4; duration: 700; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }
                                 }
                             }
-                            onClicked: {
-                                if (vpnRoot.backendConfig) {
-                                    vpnRoot.backendConfig.startVpn()
-                                }
-                            }
+                            onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.startVpn()
                         }
 
-                        // ── DISCONNECT BUTTON ─────────────────────────────────
                         Button {
                             id: disconnectBtn
                             text: "⬇  DISCONNECT TUNNEL"
-                            visible: vpnRoot.isConnected
                             Layout.fillWidth: true
                             Layout.preferredHeight: 44
                             flat: true
@@ -377,7 +383,6 @@ Rectangle {
                             onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.stopVpn()
                         }
 
-                        // ── RESET REGISTRATION ────────────────────────────────
                         Button {
                             text: "RESET REGISTRATION"
                             Layout.fillWidth: true
@@ -393,11 +398,10 @@ Rectangle {
                             onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.resetRegistration()
                         }
 
-                        // Bottom spacing so content doesn't sit flush against the banner
                         Item { Layout.preferredHeight: 8 }
                     }
-                }   // ColumnLayout
-            }       // Item wrapper
-        }           // ScrollView
-    }               // vpnCard
+                }
+            }
+        }
+    }
 }

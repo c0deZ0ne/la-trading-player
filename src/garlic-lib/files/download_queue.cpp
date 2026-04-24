@@ -64,6 +64,7 @@ void DownloadQueue::processQueue()
             connect(MyDownloader, SIGNAL(notcacheable(TNetworkAccess*)), SLOT(doNotCacheable(TNetworkAccess*)));
             connect(MyDownloader, SIGNAL(notmodified(TNetworkAccess*)), SLOT(doNotModified(TNetworkAccess*)));
             connect(MyDownloader, SIGNAL(failed(TNetworkAccess*)), SLOT(doFailed(TNetworkAccess*)));
+            connect(MyDownloader, &Downloader::downloadProgress, this, &DownloadQueue::downloadProgress);
 
             download_slots.insert(paths.second, MyDownloader);
             MyDownloader->processFile(QUrl(paths.first), QFileInfo(paths.second));

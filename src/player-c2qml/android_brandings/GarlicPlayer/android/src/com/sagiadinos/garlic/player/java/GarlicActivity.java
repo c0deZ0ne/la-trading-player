@@ -45,15 +45,12 @@ import java.util.concurrent.ExecutionException;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 
-
-public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity
-{
+public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity {
     private static GarlicActivity m_instance;
-    private boolean is_launcher     = false;
+    private boolean is_launcher = false;
     private static LauncherInterface MyLauncherInterface = null;
 
-    public GarlicActivity()
-    {
+    public GarlicActivity() {
         Log.d("GarlicActivity", "Constructor called");
         m_instance = this;
     }
@@ -66,8 +63,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     @Override
-    public void onCreate(Bundle savedInstanceState)
-    {
+    public void onCreate(Bundle savedInstanceState) {
         m_instance = this;
         super.onCreate(savedInstanceState);
 
@@ -75,31 +71,27 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             @Override
             public void uncaughtException(Thread thread, Throwable throwable) {
                 Log.e("GarlicActivity", "Uncaught exception: ", throwable);
-                
+
                 Intent intent = new Intent(m_instance, GarlicActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                
+
                 PendingIntent pendingIntent = PendingIntent.getActivity(
-                    m_instance.getBaseContext(), 
-                    0, 
-                    intent, 
-                    PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
-                );
-                
+                        m_instance.getBaseContext(),
+                        0,
+                        intent,
+                        PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
+
                 AlarmManager mgr = (AlarmManager) m_instance.getBaseContext().getSystemService(Context.ALARM_SERVICE);
                 mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 2000, pendingIntent);
-                
+
                 System.exit(2);
             }
         });
 
-        if (isGarlicLauncherInstalled())
-        {
+        if (isGarlicLauncherInstalled()) {
             is_launcher = true;
             MyLauncherInterface = new GarlicLauncher(this);
-        }
-        else if (isPhilipsLauncherInstalled())
-        {
+        } else if (isPhilipsLauncherInstalled()) {
             is_launcher = true;
             MyLauncherInterface = new PhilipsLauncher(this);
         }
@@ -111,7 +103,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             Log.d("GarlicActivity", "Checking Device Owner status...");
             if (dpm.isDeviceOwnerApp(getPackageName())) {
                 Log.d("GarlicActivity", "App IS Device Owner. Whitelisting package for Lock Task...");
-                dpm.setLockTaskPackages(adminName, new String[]{getPackageName()});
+                dpm.setLockTaskPackages(adminName, new String[] { getPackageName() });
                 if (dpm.isLockTaskPermitted(getPackageName())) {
                     Log.d("GarlicActivity", "Lock Task IS permitted. Starting Lock Task...");
                     startLockTask();
@@ -138,13 +130,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private void hideSystemUI() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            );
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -157,8 +148,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         }
     }
 
-     public void registerBroadcastReceiver()
-    {
+    public void registerBroadcastReceiver() {
         IntentFilter filter = new IntentFilter("com.sagiadinos.garlic.player.java.ConfigReceiver");
         ConfigReceiver MyConfigReceiver = new ConfigReceiver();
         registerReceiver(MyConfigReceiver, filter);
@@ -169,102 +159,81 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         registerReceiver(MySmilIndexReceiver, filter2);
     }
 
-
-    public void fetchDeviceInformation()
-    {
+    public void fetchDeviceInformation() {
         MyLauncherInterface.fetchDeviceInformation();
     }
 
-    public boolean isLauncherInstalled()
-    {
+    public boolean isLauncherInstalled() {
         return is_launcher;
     }
 
-    public String getContentUrlFromLauncher()
-    {
+    public String getContentUrlFromLauncher() {
         return MyLauncherInterface.getContentUrlFromLauncher();
     }
 
-    public String getUUIDFromLauncher()
-    {
+    public String getUUIDFromLauncher() {
         return MyLauncherInterface.getUUIDFromLauncher();
     }
 
-    public String getLauncherVersion()
-    {
+    public String getLauncherVersion() {
         return MyLauncherInterface.getLauncherVersion();
     }
 
-    public String getLauncherName()
-    {
+    public String getLauncherName() {
         return MyLauncherInterface.getLauncherName();
     }
 
-    public static void setScreenOff()
-    {
+    public static void setScreenOff() {
         MyLauncherInterface.setScreenOff();
     }
 
-    public static void setScreenOn()
-    {
+    public static void setScreenOn() {
         MyLauncherInterface.setScreenOn();
     }
 
-    public static void activateDeepStandBy(String seconds_to_wakeup)
-    {
+    public static void activateDeepStandBy(String seconds_to_wakeup) {
         MyLauncherInterface.activateDeepStandBy(seconds_to_wakeup);
     }
 
-    public static void rebootOS(String task_id)
-    {
+    public static void rebootOS(String task_id) {
         MyLauncherInterface.rebootOS(task_id);
     }
 
-    public static void installSoftware(String apk_path)
-    {
+    public static void installSoftware(String apk_path) {
         MyLauncherInterface.installSoftware(apk_path);
     }
 
-    public static void closePlayerCorrect()
-    {
-         Intent intent = new Intent("com.sagiadinos.garlic.launcher.receiver.PlayerClosedReceiver");
-         intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-         m_instance.sendBroadcast(intent);
+    public static void closePlayerCorrect() {
+        Intent intent = new Intent("com.sagiadinos.garlic.launcher.receiver.PlayerClosedReceiver");
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        m_instance.sendBroadcast(intent);
     }
 
-    public static void applyConfig(String config_path)
-    {
+    public static void applyConfig(String config_path) {
         Intent intent = new Intent("com.sagiadinos.garlic.launcher.receiver.ConfigXMLReceiver");
         intent.putExtra("config_path", config_path);
         m_instance.sendBroadcast(intent);
     }
 
-    public static void startSecondApp(String package_name)
-    {
-         Intent intent = new Intent("com.sagiadinos.garlic.launcher.receiver.SecondAppReceiver");
-         intent.putExtra("package_name", package_name);
-         m_instance.sendBroadcast(intent);
+    public static void startSecondApp(String package_name) {
+        Intent intent = new Intent("com.sagiadinos.garlic.launcher.receiver.SecondAppReceiver");
+        intent.putExtra("package_name", package_name);
+        m_instance.sendBroadcast(intent);
     }
 
-    private boolean isGarlicLauncherInstalled()
-    {
+    private boolean isGarlicLauncherInstalled() {
         return isPackageInstalled("com.sagiadinos.garlic.launcher");
     }
 
-    private boolean isPhilipsLauncherInstalled()
-    {
+    private boolean isPhilipsLauncherInstalled() {
         return isPackageInstalled("com.tpv.app.tpvlauncher");
     }
 
-    private boolean isPackageInstalled(String targetPackage)
-    {
+    private boolean isPackageInstalled(String targetPackage) {
         PackageManager pm = m_instance.getPackageManager();
-        try
-        {
+        try {
             pm.getPackageInfo(targetPackage, PackageManager.GET_META_DATA);
-        }
-        catch (PackageManager.NameNotFoundException e)
-        {
+        } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
         return true;
@@ -276,7 +245,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private String m_vpnEndpoint;
     private String m_vpnAllowedIps;
 
-    public void startVpn(final String privateKey, final String address, final String serverPubKey, final String endpoint, final String allowedIps) {
+    public void startVpn(final String privateKey, final String address, final String serverPubKey,
+            final String endpoint, final String allowedIps) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -331,9 +301,10 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         intent.putExtra("serverPubKey", m_vpnServerPubKey);
         intent.putExtra("endpoint", m_vpnEndpoint);
         intent.putExtra("allowedIps", m_vpnAllowedIps);
-        
-        Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
-        
+
+        Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint
+                + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
@@ -356,8 +327,16 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 }, 600);
             } else {
                 Log.e("GarlicActivity", "VPN permission DENIED by user");
-                try { notifyVpnError("VPN permission denied by user"); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnError JNI not linked"); }
-                try { notifyVpnStateChanged(0); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnStateChanged JNI not linked"); }
+                try {
+                    notifyVpnError("VPN permission denied by user");
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e("GarlicActivity", "notifyVpnError JNI not linked");
+                }
+                try {
+                    notifyVpnStateChanged(0);
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e("GarlicActivity", "notifyVpnStateChanged JNI not linked");
+                }
             }
         }
     }
@@ -407,5 +386,6 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     public static native void notifyVpnStateChanged(int state);
+
     public static native void notifyVpnError(String message);
 }

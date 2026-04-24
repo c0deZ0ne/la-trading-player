@@ -210,6 +210,9 @@ void Downloader::startDownload(QNetworkReply *reply)
     MyFileDownloader.reset(new FileDownloader(manager_get.data(), MyConfiguration, this));
     connect(MyFileDownloader.data(), SIGNAL(downloadSuccessful()), SLOT(doDownloadSuccessFul()));
     connect(MyFileDownloader.data(), SIGNAL(downloadError(QNetworkReply*)), SLOT(doDownloadError(QNetworkReply*)));
+    connect(MyFileDownloader.data(), &FileDownloader::downloadProgress, this, [this](qint64 received, qint64 total) {
+        emit downloadProgress(remote_file_url.toString(), received, total);
+    });
 
     MyFileDownloader->startDownload(reply->url(), local_file_info.absoluteFilePath(), remote_size, currentDataset.etag);
 }

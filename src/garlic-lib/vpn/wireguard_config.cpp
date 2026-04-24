@@ -7,6 +7,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QUrl>
+#include <QUrlQuery>
+#include "../version.h"
 
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
@@ -26,15 +28,17 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_virtualIp("")
     , m_allowedIps("0.0.0.0/0")
     , m_isEnabled(false)
-    , m_status(0)
+    , m_status(Disconnected)
     , m_errorMessage("")
     , m_enrollmentToken(DEFAULT_ENROLLMENT_TOKEN)
     , m_managementBaseUrl(DEFAULT_MANAGEMENT_URL)
     , m_isRegistered(false)
     , m_networkManager(new QNetworkAccessManager(this))
+    , m_otaTimer(nullptr)
+    , m_reconnectTimer(new QTimer(this))
 {
-    connect(m_networkManager, &QNetworkAccessManager::finished,
-            this, &WireguardConfig::handleRegistrationResponse);
+    m_reconnectTimer->setInterval(15000); // 15s watchdog
+    connect(m_reconnectTimer, &QTimer::timeout, this, &WireguardConfig::handleReconnect);
 }
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
@@ -63,9 +67,12 @@ void WireguardConfig::load()
     QString savedToken = m_mainConfig->getUserConfigByKey("vpn_enrollment_token");
     if (!savedToken.isEmpty()) m_enrollmentToken = savedToken;
 
-    // ZERO-TOUCH: If no identity exists (first boot), auto-generate it now.
+    // ZERO-TOUCH: If no identity exists (first boot or wiped), auto-generate it now.
     if (m_publicKey.isEmpty()) {
         qDebug() << "[Wireguard] No identity found. Auto-generating secure keypair...";
+        // If we lost our keys, our previous registration is invalid. Force a new one.
+        m_isRegistered = false;
+        m_virtualIp = "";
         generateIdentity();
     }
 
@@ -76,6 +83,13 @@ void WireguardConfig::load()
     emit virtualIpChanged();
     emit allowedIpsChanged();
     emit isEnabledChanged();
+
+    // Start watchdog if enabled on boot
+    if (m_isEnabled && m_status == Disconnected) {
+        qDebug() << "[Wireguard] Watchdog active on boot. Interval: 15s";
+        m_reconnectTimer->start();
+    }
+
     emit playerNameChanged();
     emit enrollmentTokenChanged();
 }
@@ -153,6 +167,12 @@ void WireguardConfig::setIsEnabled(bool value)
         m_isEnabled = value;
         emit isEnabledChanged();
         save();
+        
+        if (m_isEnabled && m_status == Disconnected) {
+            m_reconnectTimer->start();
+        } else if (!m_isEnabled) {
+            m_reconnectTimer->stop();
+        }
     }
 }
 
@@ -188,6 +208,15 @@ void WireguardConfig::setManagementBaseUrl(const QString &url)
     m_managementBaseUrl = url;
 }
 
+bool WireguardConfig::getIsRegistered() const { return m_isRegistered; }
+void WireguardConfig::setIsRegistered(bool value)
+{
+    if (m_isRegistered != value) {
+        m_isRegistered = value;
+        save();
+    }
+}
+
 // ─── VPN Lifecycle ────────────────────────────────────────────────────────────
 
 bool WireguardConfig::isConfigComplete() const
@@ -202,6 +231,11 @@ bool WireguardConfig::isConfigComplete() const
 
 void WireguardConfig::startVpn()
 {
+    if (m_status == Connecting || m_status == Registering) {
+        qInfo() << "[Wireguard] Connection already in progress. Ignoring request.";
+        return;
+    }
+
     qCritical() << "[Wireguard] startVpn() called."
                 << "Registered:" << m_isRegistered
                 << "VirtualIp:" << m_virtualIp;
@@ -216,13 +250,15 @@ void WireguardConfig::startVpn()
     }
 
     setIsEnabled(true);
-    m_status = 0; // force re-trigger of status signal
     setStatus(Connecting);
     emit requestVpnStart(m_privateKey, m_virtualIp + "/32", m_serverPublicKey, m_serverEndpoint, m_allowedIps);
 }
 
 void WireguardConfig::stopVpn()
 {
+    if (m_otaTimer) {
+        m_otaTimer->stop();
+    }
     setIsEnabled(false);
     setStatus(Disconnected);
     emit requestVpnStop();
@@ -269,7 +305,10 @@ void WireguardConfig::performHandshake()
                          QNetworkRequest::NoLessSafeRedirectPolicy);
 
     qInfo() << "[Wireguard] POST" << url.toString() << "deviceId:" << deviceId;
-    m_networkManager->post(request, body);
+    QNetworkReply *reply = m_networkManager->post(request, body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        handleRegistrationResponse(reply);
+    });
 }
 
 void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
@@ -319,6 +358,49 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     startVpn();
 }
 
+void WireguardConfig::checkOtaUpdate()
+{
+    qDebug() << "[Wireguard][OTA] Checking for newer APK version...";
+    
+    // Extract version code from "v1.0.1004"
+    QString vStr = QString(version_from_git);
+    int currentVersion = vStr.section('.', -1).toInt();
+    
+    QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-check");
+    QUrlQuery query;
+    query.addQueryItem("versionCode", QString::number(currentVersion));
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
+    request.setRawHeader("x-device-id", getPlayerName().toUtf8());
+    QNetworkReply *reply = m_networkManager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        handleOtaResponse(reply);
+    });
+}
+
+void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
+{
+    reply->deleteLater();
+    if (reply->error() != QNetworkReply::NoError) {
+        qWarning() << "[Wireguard][OTA] Poll failed:" << reply->errorString();
+        return;
+    }
+
+    QByteArray data = reply->readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull() || !doc.isObject()) return;
+
+    QJsonObject obj = doc.object();
+    if (obj.value("updateAvailable").toBool()) {
+        QString downloadUrl = obj.value("downloadUrl").toString();
+        qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! URL:" << downloadUrl;
+        emit requestOtaDownload(downloadUrl);
+    } else {
+        qDebug() << "[Wireguard][OTA] Device is up to date.";
+    }
+}
+
 void WireguardConfig::resetRegistration()
 {
     qInfo() << "[Wireguard] Resetting registration state.";
@@ -351,19 +433,47 @@ void WireguardConfig::copyToClipboard(const QString &text)
     }
 }
 
-int WireguardConfig::getStatus() const { return m_status; }
+WireguardConfig::VpnStatus WireguardConfig::getStatus() const { return m_status; }
 
-void WireguardConfig::setStatus(int status)
+void WireguardConfig::setStatus(VpnStatus status)
 {
     if (m_status != status) {
         m_status = status;
         emit statusChanged();
 
-        // Auto-save on successful connection to lock in working credentials
+        // Manage Reconnect Watchdog
         if (m_status == Connected) {
+            m_reconnectTimer->stop();
+            
             save();
             emit requestSystemReport();
+            
+            // Start OTA Polling Timer (every 15 minutes)
+            if (!m_otaTimer) {
+                m_otaTimer = new QTimer(this);
+                connect(m_otaTimer, &QTimer::timeout, this, &WireguardConfig::checkOtaUpdate);
+            }
+            m_otaTimer->start(15 * 60 * 1000); // 15 mins
+            
+            // Trigger an immediate check on connection
+            QTimer::singleShot(5000, this, &WireguardConfig::checkOtaUpdate);
+        } 
+        else if (m_status == Disconnected || m_status == Error) {
+            if (m_isEnabled) {
+                qInfo() << "[Wireguard] Disconnected while enabled. Starting reconnect watchdog...";
+                m_reconnectTimer->start();
+            }
         }
+    }
+}
+
+void WireguardConfig::handleReconnect()
+{
+    if (m_isEnabled && (m_status == Disconnected || m_status == Error)) {
+        qInfo() << "[Wireguard][Watchdog] Re-triggering VPN start...";
+        startVpn();
+    } else {
+        m_reconnectTimer->stop();
     }
 }
 

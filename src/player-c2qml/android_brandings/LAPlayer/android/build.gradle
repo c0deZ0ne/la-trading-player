@@ -22,6 +22,7 @@ apply plugin: 'com.android.application'
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
     implementation 'com.wireguard.android:tunnel:1.0.20211029'
+    implementation files('C:/Users/Training/Desktop/jjteck/la-player/src/player-c2qml/android_brandings/LAPlayer/android/libs/core-1.1.0.aar')
 }
 
 android {

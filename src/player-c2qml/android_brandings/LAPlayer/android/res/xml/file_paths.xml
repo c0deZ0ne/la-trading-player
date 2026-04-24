@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Covers getExternalFilesDir(null) — where update.apk is saved -->
+    <external-files-path name="external_files" path="." />
+    <!-- Covers getFilesDir() — internal app storage -->
+    <files-path name="internal_files" path="." />
+    <!-- Covers /sdcard/ root -->
+    <external-path name="external_storage" path="." />
+</paths>

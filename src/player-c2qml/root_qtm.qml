@@ -144,4 +144,10 @@ Item
             }
         }
     }
+
+    // New Download Progress Overlay
+    DownloadOverlay {
+        id: downloadProgressIndicator
+        z: 30000 // Ensure it's above content but below critical dialogs
+    }
 }

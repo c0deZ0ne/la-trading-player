@@ -39,11 +39,15 @@ class AndroidManager : public QObject
         QString getUUIDFromLauncher();
 
         // VPN Integration
+        int getVpnState();
         QStringList generateVpnKeyPair();
         void startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint, const QString &allowedIps);
         void stopVpnTunnel();
         void openNetworkSettings();
         
+        // OTA Updates
+        void triggerOtaDownload(const QString &url);
+
         // Kiosk Mode escape hatch
         void startKioskMode();
         void exitKioskMode();

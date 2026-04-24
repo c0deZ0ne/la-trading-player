@@ -194,6 +194,7 @@ SOURCES += \
     tools/reboot/timer.cpp \
     tools/reboot/weekdayconverter.cpp \
     tools/resource_monitor.cpp \
+    tools/remote_management_manager.cpp \
     tools/wrapper_settings.cpp \
     vpn/wireguard_config.cpp
 
@@ -287,6 +288,7 @@ HEADERS += \
     tools/reboot/timer.hpp \
     tools/reboot/weekdayconverter.hpp \
     tools/resource_monitor.h \
+    tools/remote_management_manager.h \
     reports/create/base_reports.h \
     reports/create/system_report.h \
     reports/system_report_manager.h \

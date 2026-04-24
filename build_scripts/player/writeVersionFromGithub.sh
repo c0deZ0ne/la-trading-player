@@ -9,7 +9,14 @@ if [ -z "$BUILD_NUMBER" ]; then
 else
 	export GIT_DIR=$WORKSPACE/
 fi
-COMMIT_NUMBER=`git --git-dir="$GIT_DIR/.git" rev-list --all --count`
+# Use FORCE_VERSION_CODE if provided, otherwise count git commits
+if [ ! -z "$FORCE_VERSION_CODE" ]; then
+    COMMIT_NUMBER=$FORCE_VERSION_CODE
+    echo "Forcing version code to: $COMMIT_NUMBER"
+else
+    COMMIT_NUMBER=`git --git-dir="$GIT_DIR/.git" rev-list --all --count`
+fi
+
 VERSION_NAME=`git --git-dir="$GIT_DIR/.git" describe --tags $(git --git-dir="$GIT_DIR/.git" rev-list --tags --max-count=1) 2>/dev/null || echo "v1.0"`
 
 export GARLIC_VERSION=${VERSION_NAME%%-*}.$COMMIT_NUMBER

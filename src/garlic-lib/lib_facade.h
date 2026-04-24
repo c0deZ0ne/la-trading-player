@@ -55,6 +55,9 @@ class LibFacade : public QObject
 {
         Q_OBJECT
         Q_PROPERTY(WireguardConfig* vpnConfig READ getVpnConfig CONSTANT)
+        Q_PROPERTY(bool isDownloading READ isDownloading NOTIFY downloadStatusChanged)
+        Q_PROPERTY(double downloadProgress READ downloadProgress NOTIFY downloadStatusChanged)
+        Q_PROPERTY(QString downloadLabel READ downloadLabel NOTIFY downloadStatusChanged)
     public:
         explicit LibFacade(QObject *parent = nullptr);
         ~LibFacade();
@@ -75,6 +78,13 @@ class LibFacade : public QObject
         QString            requestLoaddableMediaPath(QString path);
         void               shutDownParsing();
         void               initParserWithTemporaryFile(QString uri);
+        Q_INVOKABLE void   enrollDevice(QString token, QString playlistUrl);
+        
+        // Progress Reporting
+        bool               isDownloading() const { return m_isDownloading; }
+        double             downloadProgress() const { return m_downloadProgress; }
+        QString            downloadLabel() const { return m_downloadLabel; }
+        void               notifyOtaProgress(qint64 received, qint64 total);
     public slots:
         void               initParser();
         void               reboot(QString task_id);
@@ -108,6 +118,7 @@ class LibFacade : public QObject
         void               initFileManager();
         void               processHeadParsing();
         void               timerEvent(QTimerEvent *event);
+        void               updateDownloadStatus();
 
     protected slots:
         void               loadIndex();
@@ -118,10 +129,16 @@ class LibFacade : public QObject
         void               emitPauseShowMedia(BaseMedia *media);
         void               emitResumeShowMedia(BaseMedia *media);
         void               processBodyParsing();
+        void               handleMediaDownloadProgress(QString src, qint64 received, qint64 total);
     private:
         QScopedPointer<Smil> MySmil;
         Timer             RebootTimer;
         QScopedPointer<Expr> MyExpr;
+        bool              m_isDownloading = false;
+        double            m_downloadProgress = 0.0;
+        QString           m_downloadLabel = "";
+        qint64            m_otaReceived = 0;
+        qint64            m_otaTotal = 0;
         void              configureRebootTimer();
     signals:
         void               startShowMedia(BaseMedia *media);
@@ -135,6 +152,7 @@ class LibFacade : public QObject
         void               screenshot(QString file_path);
         void               rebootOS(QString task_id);
         void               installSoftware(QString file_path);
+        void               downloadStatusChanged();
 };
 
 #endif // LIB_FACADE_H

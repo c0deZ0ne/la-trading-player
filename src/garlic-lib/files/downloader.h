@@ -76,6 +76,7 @@ class Downloader : public TNetworkAccess
         QString                 determineLocalFileMd5();
         void                    emitNotModified(QNetworkReply *reply);
     signals:
+        void                    downloadProgress(QString src, qint64 bytesReceived, qint64 bytesTotal);
         void                    notmodified(TNetworkAccess *);
         void                    notcacheable(TNetworkAccess *);
 };

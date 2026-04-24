@@ -63,6 +63,7 @@ class DownloadQueue : public QObject
         void               doFailed(TNetworkAccess *downloader);
 
     signals:
+        void               downloadProgress(QString src, qint64 bytesReceived, qint64 bytesTotal);
         void               succeed(QString src, QString local);
         void               notmodified(QString src);
         void               notcacheable(QString src);

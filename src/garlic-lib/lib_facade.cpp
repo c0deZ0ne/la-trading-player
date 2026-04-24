@@ -21,7 +21,11 @@
 #include <QNetworkProxyQuery>
 #include <QUrl>
 #include <QDebug>
+
+LibFacade *GlobalLibfacede = nullptr;
+
 #include "logger.h"
+#include "../player-c2qml/Java2Cpp.h"
 
 LibFacade::LibFacade(QObject *parent) : QObject(parent)
 {
@@ -54,11 +58,16 @@ LibFacade::~LibFacade()
  */
 void LibFacade::init(MainConfiguration *config)
 {    
+    GlobalLibfacede = this;
     MyConfiguration.reset(config);
     MyInventoryTable.reset(new DB::InventoryTable(this));
     MyInventoryTable.data()->init(MyConfiguration.data()->getPaths("logs"));
     MyFreeDiscSpace.data()->init(MyConfiguration.data()->getPaths("cache"));
     MyFreeDiscSpace.data()->setInventoryTable(MyInventoryTable.data());
+
+#if defined Q_OS_ANDROID
+    setGlobalLibFaceForJava(this);
+#endif
 
     MyDiscSpace.data()->init(MyConfiguration.data()->getPaths("cache"));
     MyIndexManager.reset(new Files::IndexManager(MyInventoryTable.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
@@ -195,6 +204,7 @@ void LibFacade::initFileManager()
 {
     MyMediaModel.reset(new MediaModel(MyFreeDiscSpace.data(), this));
     MyDownloadQueue.reset(new DownloadQueue(MyConfiguration.data(), MyFreeDiscSpace.data(), MyInventoryTable.data(), this));
+    connect(MyDownloadQueue.data(), &DownloadQueue::downloadProgress, this, &LibFacade::handleMediaDownloadProgress);
     MyMediaManager.reset(new Files::MediaManager(MyMediaModel.data(), MyDownloadQueue.data(), MyConfiguration.data(), MyFreeDiscSpace.data(), this));
     qDebug() <<  " end initFileManager" ;
 }
@@ -319,4 +329,121 @@ void LibFacade::forceSystemReport()
     {
         MyHeadParser.data()->forceSystemReport();
     }
+}
+
+void LibFacade::notifyOtaProgress(qint64 received, qint64 total)
+{
+    m_otaReceived = received;
+    m_otaTotal = total;
+    
+    if (received >= total && total > 0) {
+        m_otaReceived = 0;
+        m_otaTotal = 0;
+    }
+    
+    updateDownloadStatus();
+}
+
+void LibFacade::handleMediaDownloadProgress(QString src, qint64 received, qint64 total)
+{
+    Q_UNUSED(src);
+    Q_UNUSED(received);
+    Q_UNUSED(total);
+    // DownloadQueue will be updated to emit aggregate progress later
+    updateDownloadStatus();
+}
+
+void LibFacade::updateDownloadStatus()
+{
+    bool wasDownloading = m_isDownloading;
+    double oldProgress = m_downloadProgress;
+    QString oldLabel = m_downloadLabel;
+
+    // OTA takes precedence
+    if (m_otaTotal > 0) {
+        m_isDownloading = true;
+        m_downloadProgress = (double)m_otaReceived / m_otaTotal;
+        m_downloadLabel = QString("Updating System Software (%1%)").arg((int)(m_downloadProgress * 100));
+    } else {
+        // Fallback to media queue or idle
+        m_isDownloading = false;
+        m_downloadProgress = 0;
+        m_downloadLabel = "";
+    }
+
+    if (wasDownloading != m_isDownloading || oldProgress != m_downloadProgress || oldLabel != m_downloadLabel) {
+        emit downloadStatusChanged();
+    }
+}
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
+void LibFacade::enrollDevice(QString token, QString playlistUrl)
+{
+    if (token.isEmpty()) {
+        emit initFailed("Enrollment Token is required");
+        return;
+    }
+
+    emit initStarted();
+    qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
+
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QUrl url("http://107.172.34.199:3005/api/v1/devices/vpn-register");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject json;
+    json["deviceId"] = MyConfiguration->getUuid();
+    json["enrollmentToken"] = token;
+    
+    // Include Wireguard Public Key if available
+    if (!MyVpnConfiguration.isNull()) {
+        json["publicKey"] = MyVpnConfiguration->getPublicKey();
+    }
+
+    QJsonDocument doc(json);
+    QByteArray data = doc.toJson();
+
+    QNetworkReply *reply = manager->post(request, data);
+
+    connect(reply, &QNetworkReply::finished, [this, reply, manager, token, playlistUrl]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray response = reply->readAll();
+            QJsonDocument doc = QJsonDocument::fromJson(response);
+            QJsonObject obj = doc.object();
+
+            qDebug() << "Enrollment successful!";
+            
+            // 1. Save Provisioned Config
+            MyConfiguration->setPlayerName(obj.value("deviceName").toString(MyConfiguration->getPlayerName()));
+            MyConfiguration->setIndexUri(playlistUrl); // Save the provided URL
+            
+            // 2. Setup VPN if returned
+            if (!MyVpnConfiguration.isNull()) {
+                MyVpnConfiguration->setEnrollmentToken(token);
+                if (obj.contains("vpnConfig")) {
+                    QJsonObject vpn = obj["vpnConfig"].toObject();
+                    MyVpnConfiguration->setVirtualIp(vpn["virtualIp"].toString());
+                    MyVpnConfiguration->setServerPublicKey(vpn["serverPublicKey"].toString());
+                    MyVpnConfiguration->setServerEndpoint(vpn["endpoint"].toString());
+                    MyVpnConfiguration->setIsEnabled(true);
+                    MyVpnConfiguration->setIsRegistered(true);
+                }
+                MyVpnConfiguration->save();
+            }
+
+            emit readyForPlaying();
+        } else {
+            QString error = reply->errorString();
+            qDebug() << "Enrollment failed:" << error;
+            emit initFailed("Registration Failed: " + error);
+        }
+        reply->deleteLater();
+        manager->deleteLater();
+    });
 }

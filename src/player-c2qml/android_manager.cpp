@@ -199,9 +199,22 @@ QStringList AndroidManager::generateVpnKeyPair()
     return pair;
 }
 
+int AndroidManager::getVpnState()
+{
+#ifdef Q_OS_ANDROID
+    return QAndroidJniObject::callStaticMethod<jint>(
+        "com/laplayer/player/java/GarlicActivity",
+        "getVpnState",
+        "()I"
+    );
+#else
+    return 0;
+#endif
+}
+
 void AndroidManager::startVpnTunnel(const QString &privateKey, const QString &address, const QString &serverPubKey, const QString &endpoint, const QString &allowedIps)
 {
-    qDebug() << "[Wireguard][CPP] AndroidManager::startVpnTunnel() called";
+    qDebug() << "[Wireguard][CPP] AndroidManager::startVpnTunnel() called with EP:" << endpoint << "IP:" << address;
     QtAndroid::runOnAndroidThread([privateKey, address, serverPubKey, endpoint, allowedIps]() {
         QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", "()L" ANDROID_ACTIVITY_PATH ";");
         
@@ -245,6 +258,22 @@ void AndroidManager::openNetworkSettings()
         QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", "()L" ANDROID_ACTIVITY_PATH ";");
         if (MyActivity.isValid()) {
             MyActivity.callMethod<void>("openNetworkSettings");
+        }
+    });
+#endif
+}
+
+void AndroidManager::triggerOtaDownload(const QString &url)
+{
+    qDebug() << "[OTA][CPP] AndroidManager::triggerOtaDownload() called. URL:" << url;
+#if defined Q_OS_ANDROID
+    QtAndroid::runOnAndroidThread([url]() {
+        QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", "()L" ANDROID_ACTIVITY_PATH ";");
+        if (MyActivity.isValid()) {
+            QAndroidJniObject jUrl = QAndroidJniObject::fromString(url);
+            MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;)V", jUrl.object<jstring>());
+        } else {
+            qCritical() << "[OTA][CPP] FAILED to obtain GarlicActivity instance for download!";
         }
     });
 #endif
