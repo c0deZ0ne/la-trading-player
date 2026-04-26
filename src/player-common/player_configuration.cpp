@@ -67,11 +67,7 @@ QString PlayerConfiguration::determineDefaultContentUrlName()
 
 QString PlayerConfiguration::determineDefaultContentUrl()
 {
-    QString deviceId = MyMainConfiguration->getUuid();
-    if (deviceId.isEmpty()) {
-        deviceId = MyMainConfiguration->createUuid();
-    }
-    return QString("https://la-trading-api.onrender.com/api/v1/device-playlist/%1/xml").arg(deviceId);
+    return QString("https://la-trading-api.onrender.com/api/v1/device-playlist/%1/xml").arg(MyMainConfiguration->getStaticHardwareId());
 }
 
 
@@ -86,22 +82,15 @@ void PlayerConfiguration::setSmilIndexUriFromLauncher(QString value)
 
 void PlayerConfiguration::determineUuid()
 {
-    // if launcher has an uuid use it
+    // if launcher has an uuid use it (Launcher identity takes precedence if present)
     if (has_launcher && !launcher_uuid.isEmpty() && launcher_uuid != MyMainConfiguration->getUuid())
     {
         MyMainConfiguration->setUuid(launcher_uuid);
         return;
     }
 
-    // if launcher has not an uuid and player has one use from player
-    if (!MyMainConfiguration->getUuid().isEmpty() && !MyMainConfiguration->getUuid().isEmpty())
-    {
-        MyMainConfiguration->setUuid(MyMainConfiguration->getUuid());
-        return;
-    }
-
-    // create UUID in Player
-    MyMainConfiguration->setUuid(MyMainConfiguration->createUuid());
+    // Otherwise, always use the physical hardware ID as the source of truth
+    MyMainConfiguration->setUuid(MyMainConfiguration->getStaticHardwareId());
 }
 
 void PlayerConfiguration::determineSmilIndexUri()

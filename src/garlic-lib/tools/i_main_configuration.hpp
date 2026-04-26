@@ -3,6 +3,7 @@
 
 #include <QSettings>
 #include <QString>
+#include <QJsonObject>
 
 class IMainConfiguration
 {
@@ -11,6 +12,7 @@ class IMainConfiguration
 
         virtual void init() = 0;
         virtual QString getVersion() = 0;
+        virtual QString getBuildVersion() = 0;
         virtual void setAdditionalVersion(QString value) = 0;
         virtual void setAppName(QString value) = 0;
         virtual QString getAppName() = 0;
@@ -21,6 +23,7 @@ class IMainConfiguration
         virtual QString getUserConfigByKey(QString key) = 0;
         virtual void setUserConfigByKey(QString key, QString value) = 0;
         virtual QString createUuid() = 0;
+        virtual QString getStaticHardwareId() const = 0;
         virtual void setUuid(const QString &value) = 0;
         virtual void setPlayerName(const QString &value) = 0;
         virtual void determinePlayerName() = 0;
@@ -49,6 +52,7 @@ class IMainConfiguration
         virtual QString getLastPlayedIndexPath() = 0;
         virtual QString getStartTime() const = 0;
         virtual void setStartTime(const QString &value) = 0;
+        virtual QJsonObject getSystemMetadata() const = 0;
         virtual QString getPaths(QString path_name) = 0;
         virtual void setIndexUri(const QString &value) = 0;
         virtual void setIndexPath(const QString &value) = 0;

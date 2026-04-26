@@ -16,3 +16,18 @@ INCLUDEPATH += $$PWD/garlic-lib/system_infos
 INCLUDEPATH += $$PWD/garlic-lib/tools
 INCLUDEPATH += $$PWD/garlic-lib/tools/reboot
 SRC_DIR = $$PWD
+
+# Branding Logic
+isEmpty(BRANDING): BRANDING = $$(BRANDING)
+isEmpty(BRANDING): BRANDING = GarlicPlayer
+
+message("Building with BRANDING: $$BRANDING")
+
+contains(BRANDING, GarlicPlayer) {
+    DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicActivity\\\"
+    DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicVpnService\\\"
+}
+contains(BRANDING, LAPlayer) {
+    DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/laplayer/player/java/GarlicActivity\\\"
+    DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/laplayer/player/java/GarlicVpnService\\\"
+}

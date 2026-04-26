@@ -2,6 +2,7 @@ import QtQuick 2.12
 import QtQuick.Layouts 1.12
 import QtQuick.Controls 2.12
 import QtQuick.Window 2.12
+import com.garlic.vpn 1.0
 
 Rectangle {
     id: vpnRoot
@@ -16,6 +17,7 @@ Rectangle {
     property string statusMessage: vpnRoot.backendConfig ? vpnRoot.backendConfig.errorMessage : ""
 
     signal cancel()
+    signal saveConfig()
 
     readonly property bool isMobile: Screen.primaryOrientation === Qt.PortraitOrientation || vpnRoot.width < 600
     readonly property real cardWidth:  isMobile ? vpnRoot.width  : Math.min(vpnRoot.width  * 0.9, 460)
@@ -26,11 +28,11 @@ Rectangle {
     // ── Proper State Management ───────────────────────────────────────────────
     state: {
         if (!backendConfig) return "UNREGISTERED";
-        if (vpnStatus === backendConfig.Registering) return "REGISTERING";
-        if (vpnStatus === backendConfig.Error)       return "ERROR";
-        if (!isRegistered)                           return "UNREGISTERED";
-        if (vpnStatus === backendConfig.Connecting)  return "CONNECTING";
-        if (vpnStatus === backendConfig.Connected)   return "CONNECTED";
+        if (vpnStatus === WireguardConfig.Registering) return "REGISTERING";
+        if (vpnStatus === WireguardConfig.Error)       return "ERROR";
+        if (!isRegistered)                             return "UNREGISTERED";
+        if (vpnStatus === WireguardConfig.Connecting)  return "CONNECTING";
+        if (vpnStatus === WireguardConfig.Connected)   return "CONNECTED";
         return "DISCONNECTED";
     }
 
@@ -126,7 +128,7 @@ Rectangle {
             Text {
                 text: "GATEWAY ACCESS"
                 anchors.centerIn: parent
-                color: "white"
+                color: "#ffff00"
                 font { pixelSize: 20; weight: Font.Bold; letterSpacing: 2 }
             }
         }
@@ -277,7 +279,7 @@ Rectangle {
                             onClicked: {
                                 if (vpnRoot.backendConfig) {
                                     vpnRoot.backendConfig.save()
-                                    vpnRoot.backendConfig.startVpn()
+                                    vpnRoot.backendConfig.performHandshake()
                                 }
                             }
                         }
@@ -398,7 +400,100 @@ Rectangle {
                             onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.resetRegistration()
                         }
 
+                        // Version Label
+                        Text {
+                            text: "Build Version: " + (LibFacade ? LibFacade.appVersion : "---")
+                            color: "#333333"
+                            font.pixelSize: 10
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.topMargin: -10
+                        }
+
                         Item { Layout.preferredHeight: 8 }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- PREMIUM LOADING OVERLAY ---
+    Rectangle {
+        id: loadingOverlay
+        anchors.fill: parent
+        color: "#aa000000"
+        z: 1000
+        visible: opacity > 0
+        opacity: (vpnRoot.state === "REGISTERING" || vpnRoot.state === "CONNECTING" || LibFacade.downloadProgress > 0) ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
+
+        MouseArea { anchors.fill: parent } // Block interactions
+
+        Rectangle {
+            width: Math.min(parent.width * 0.8, 300)
+            height: 200
+            color: "#252525"
+            radius: 16
+            anchors.centerIn: parent
+            border.color: "#444444"
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 20
+
+                Item {
+                    Layout.alignment: Qt.AlignHCenter
+                    width: 60
+                    height: 60
+
+                    BusyIndicator {
+                        anchors.fill: parent
+                        running: vpnRoot.state === "REGISTERING" || vpnRoot.state === "CONNECTING"
+                        visible: running
+                    }
+                }
+
+                Text {
+                    text: vpnRoot.statusMessage !== "" ? vpnRoot.statusMessage : "Establishing Tunnel..."
+                    color: "white"
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    text: vpnRoot.state === "REGISTERING" ? "Contacting VPC Gateway..." : (LibFacade.isDownloading ? "Downloading Package..." : "Negotiating Tunnel Handshake...")
+                    color: "#888888"
+                    font.pixelSize: 14
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                ProgressBar {
+                    id: otaVpnProgress
+                    visible: LibFacade.isDownloading
+                    value: LibFacade.downloadProgress > 0 ? LibFacade.downloadProgress : 0.01
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 6
+                    background: Rectangle {
+                        implicitWidth: 200
+                        implicitHeight: 6
+                        color: "#333333"
+                        radius: 3
+                    }
+                    contentItem: Item {
+                        implicitWidth: 200
+                        implicitHeight: 6
+
+                        Rectangle {
+                            width: otaVpnProgress.visualPosition * parent.width
+                            height: parent.height
+                            radius: 3
+                            color: "#00e5ff"
+                        }
                     }
                 }
             }

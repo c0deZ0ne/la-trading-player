@@ -54,16 +54,15 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import android.content.BroadcastReceiver;
+import java.security.MessageDigest;
+import java.math.BigInteger;
 
-
-public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity
-{
+public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivity {
     private static GarlicActivity m_instance;
-    private boolean is_launcher     = false;
+    private boolean is_launcher = false;
     private static LauncherInterface MyLauncherInterface = null;
 
-    public GarlicActivity()
-    {
+    public GarlicActivity() {
         Log.d("GarlicActivity", "Constructor called");
         m_instance = this;
     }
@@ -76,8 +75,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     @Override
-    public void onCreate(Bundle savedInstanceState)
-    {
+    public void onCreate(Bundle savedInstanceState) {
         m_instance = this;
         super.onCreate(savedInstanceState);
 
@@ -87,31 +85,27 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             @Override
             public void uncaughtException(Thread thread, Throwable throwable) {
                 Log.e("GarlicActivity", "Uncaught exception: ", throwable);
-                
+
                 Intent intent = new Intent(m_instance, GarlicActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                
+
                 PendingIntent pendingIntent = PendingIntent.getActivity(
-                    m_instance.getBaseContext(), 
-                    0, 
-                    intent, 
-                    PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
-                );
-                
+                        m_instance.getBaseContext(),
+                        0,
+                        intent,
+                        PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
+
                 AlarmManager mgr = (AlarmManager) m_instance.getBaseContext().getSystemService(Context.ALARM_SERVICE);
                 mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 2000, pendingIntent);
-                
+
                 System.exit(2);
             }
         });
 
-        if (isGarlicLauncherInstalled())
-        {
+        if (isGarlicLauncherInstalled()) {
             is_launcher = true;
             MyLauncherInterface = new GarlicLauncher(this);
-        }
-        else if (isPhilipsLauncherInstalled())
-        {
+        } else if (isPhilipsLauncherInstalled()) {
             is_launcher = true;
             MyLauncherInterface = new PhilipsLauncher(this);
         }
@@ -123,12 +117,22 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             Log.d("GarlicActivity", "Checking Device Owner status...");
             if (dpm.isDeviceOwnerApp(getPackageName())) {
                 Log.d("GarlicActivity", "App IS Device Owner. Whitelisting package for Lock Task...");
-                dpm.setLockTaskPackages(adminName, new String[]{getPackageName()});
+                dpm.setLockTaskPackages(adminName, new String[] { getPackageName() });
                 if (dpm.isLockTaskPermitted(getPackageName())) {
                     Log.d("GarlicActivity", "Lock Task IS permitted. Starting Lock Task...");
                     startLockTask();
                 } else {
                     Log.d("GarlicActivity", "Lock Task IS NOT permitted for this package.");
+                }
+
+                // Zero-Touch VPN: Silently grant VPN permissions for this package
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        Log.d("GarlicActivity", "Granting Zero-Touch VPN permission...");
+                        dpm.setAlwaysOnVpnPackage(adminName, getPackageName(), false);
+                    } catch (Exception e) {
+                        Log.e("GarlicActivity", "Failed to set Always-On VPN: " + e.getMessage());
+                    }
                 }
             } else {
                 Log.d("GarlicActivity", "App IS NOT Device Owner.");
@@ -146,11 +150,13 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     private void handleIntent(Intent intent) {
-        if (intent == null) return;
+        if (intent == null)
+            return;
         String updateUrl = intent.getStringExtra("updateUrl");
+        String sha256 = intent.getStringExtra("sha256");
         if (updateUrl != null && !updateUrl.isEmpty()) {
             Log.i("GarlicActivity", "Internal Intent Triggered OTA: " + updateUrl);
-            downloadAndInstall(updateUrl);
+            downloadAndInstall(updateUrl, sha256 != null ? sha256 : "");
         }
     }
 
@@ -166,13 +172,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private void hideSystemUI() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            );
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -191,8 +196,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         }
     }
 
-     public void registerBroadcastReceiver()
-    {
+    public void registerBroadcastReceiver() {
         IntentFilter filter = new IntentFilter("com.laplayer.player.java.ConfigReceiver");
         ConfigReceiver MyConfigReceiver = new ConfigReceiver();
         registerReceiver(MyConfigReceiver, filter);
@@ -203,102 +207,81 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         registerReceiver(MySmilIndexReceiver, filter2);
     }
 
-
-    public void fetchDeviceInformation()
-    {
+    public void fetchDeviceInformation() {
         MyLauncherInterface.fetchDeviceInformation();
     }
 
-    public boolean isLauncherInstalled()
-    {
+    public boolean isLauncherInstalled() {
         return is_launcher;
     }
 
-    public String getContentUrlFromLauncher()
-    {
+    public String getContentUrlFromLauncher() {
         return MyLauncherInterface.getContentUrlFromLauncher();
     }
 
-    public String getUUIDFromLauncher()
-    {
+    public String getUUIDFromLauncher() {
         return MyLauncherInterface.getUUIDFromLauncher();
     }
 
-    public String getLauncherVersion()
-    {
+    public String getLauncherVersion() {
         return MyLauncherInterface.getLauncherVersion();
     }
 
-    public String getLauncherName()
-    {
+    public String getLauncherName() {
         return MyLauncherInterface.getLauncherName();
     }
 
-    public static void setScreenOff()
-    {
+    public static void setScreenOff() {
         MyLauncherInterface.setScreenOff();
     }
 
-    public static void setScreenOn()
-    {
+    public static void setScreenOn() {
         MyLauncherInterface.setScreenOn();
     }
 
-    public static void activateDeepStandBy(String seconds_to_wakeup)
-    {
+    public static void activateDeepStandBy(String seconds_to_wakeup) {
         MyLauncherInterface.activateDeepStandBy(seconds_to_wakeup);
     }
 
-    public static void rebootOS(String task_id)
-    {
+    public static void rebootOS(String task_id) {
         MyLauncherInterface.rebootOS(task_id);
     }
 
-    public static void installSoftware(String apk_path)
-    {
+    public static void installSoftware(String apk_path) {
         MyLauncherInterface.installSoftware(apk_path);
     }
 
-    public static void closePlayerCorrect()
-    {
-         Intent intent = new Intent("com.laplayer.launcher.receiver.PlayerClosedReceiver");
-         intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-         m_instance.sendBroadcast(intent);
+    public static void closePlayerCorrect() {
+        Intent intent = new Intent("com.laplayer.launcher.receiver.PlayerClosedReceiver");
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        m_instance.sendBroadcast(intent);
     }
 
-    public static void applyConfig(String config_path)
-    {
+    public static void applyConfig(String config_path) {
         Intent intent = new Intent("com.laplayer.launcher.receiver.ConfigXMLReceiver");
         intent.putExtra("config_path", config_path);
         m_instance.sendBroadcast(intent);
     }
 
-    public static void startSecondApp(String package_name)
-    {
-         Intent intent = new Intent("com.laplayer.launcher.receiver.SecondAppReceiver");
-         intent.putExtra("package_name", package_name);
-         m_instance.sendBroadcast(intent);
+    public static void startSecondApp(String package_name) {
+        Intent intent = new Intent("com.laplayer.launcher.receiver.SecondAppReceiver");
+        intent.putExtra("package_name", package_name);
+        m_instance.sendBroadcast(intent);
     }
 
-    private boolean isGarlicLauncherInstalled()
-    {
+    private boolean isGarlicLauncherInstalled() {
         return isPackageInstalled("com.laplayer.launcher");
     }
 
-    private boolean isPhilipsLauncherInstalled()
-    {
+    private boolean isPhilipsLauncherInstalled() {
         return isPackageInstalled("com.tpv.app.tpvlauncher");
     }
 
-    private boolean isPackageInstalled(String targetPackage)
-    {
+    private boolean isPackageInstalled(String targetPackage) {
         PackageManager pm = m_instance.getPackageManager();
-        try
-        {
+        try {
             pm.getPackageInfo(targetPackage, PackageManager.GET_META_DATA);
-        }
-        catch (PackageManager.NameNotFoundException e)
-        {
+        } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
         return true;
@@ -310,7 +293,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private String m_vpnEndpoint;
     private String m_vpnAllowedIps;
 
-    public void startVpn(final String privateKey, final String address, final String serverPubKey, final String endpoint, final String allowedIps) {
+    public void startVpn(final String privateKey, final String address, final String serverPubKey,
+            final String endpoint, final String allowedIps) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -365,9 +349,10 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         intent.putExtra("serverPubKey", m_vpnServerPubKey);
         intent.putExtra("endpoint", m_vpnEndpoint);
         intent.putExtra("allowedIps", m_vpnAllowedIps);
-        
-        Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
-        
+
+        Log.d("GarlicActivity", "Intent Extras: pkg=" + getPackageName() + ", endpoint=" + m_vpnEndpoint
+                + ", addresses=" + m_vpnAddress + ", allowed=" + m_vpnAllowedIps);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
@@ -393,8 +378,16 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 }, 600);
             } else {
                 Log.e("GarlicActivity", "VPN permission DENIED by user");
-                try { notifyVpnError("VPN permission denied by user"); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnError JNI not linked"); }
-                try { notifyVpnStateChanged(0); } catch (UnsatisfiedLinkError e) { Log.e("GarlicActivity", "notifyVpnStateChanged JNI not linked"); }
+                try {
+                    notifyVpnError("VPN permission denied by user");
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e("GarlicActivity", "notifyVpnError JNI not linked");
+                }
+                try {
+                    notifyVpnStateChanged(0);
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e("GarlicActivity", "notifyVpnStateChanged JNI not linked");
+                }
             }
         }
     }
@@ -443,7 +436,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         startActivity(intent);
     }
 
-    public void downloadAndInstall(final String urlString) {
+    public void downloadAndInstall(final String urlString, final String expectedSha256) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -458,8 +451,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
 
                     URL url = new URL(urlString);
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.setConnectTimeout(15000);
-                    connection.setReadTimeout(60000);
+                    connection.setConnectTimeout(60000); // 60s timeout
+                    connection.setReadTimeout(60000);    // 60s timeout
 
                     // Set Range header if we have partial file
                     if (existingSize > 0) {
@@ -479,7 +472,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                         // If 416 (Requested Range Not Satisfiable), just delete and restart
                         if (responseCode == 416) {
                             outputFile.delete();
-                            downloadAndInstall(urlString);
+                            downloadAndInstall(urlString, expectedSha256);
                             return;
                         }
                         return;
@@ -492,7 +485,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                     long finalTotal = isResume ? (totalToDownload + existingSize) : totalToDownload;
 
                     try (InputStream input = connection.getInputStream();
-                         OutputStream output = new FileOutputStream(outputFile, isResume)) {
+                            OutputStream output = new FileOutputStream(outputFile, isResume)) {
                         byte[] data = new byte[16384];
                         int count;
                         while ((count = input.read(data)) != -1) {
@@ -513,11 +506,26 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                     }
 
                     // PROFESSIONAL VERIFICATION: Match exact byte count from Content-Length header
-                    if (finalTotal > 0 && outputFile.length() == finalTotal) {
-                        Log.i("GarlicActivity", "Download verified against server headers. Starting install...");
-                        performSilentInstall(outputFile.getAbsolutePath());
+                    // If finalTotal is -1 (Chunked Encoding), we skip size check but still proceed to SHA check
+                    if (finalTotal == -1 || (finalTotal > 0 && outputFile.length() == finalTotal)) {
+                        Log.i("GarlicActivity", "Download complete (Size verified or Chunked). Checking SHA-256...");
+                        
+                        if (expectedSha256 != null && !expectedSha256.isEmpty()) {
+                            String actualSha = calculateFileSha256(outputFile);
+                            if (actualSha.equalsIgnoreCase(expectedSha256)) {
+                                Log.i("GarlicActivity", "SHA-256 VERIFIED. Starting install...");
+                                performSilentInstall(outputFile.getAbsolutePath());
+                            } else {
+                                Log.e("GarlicActivity", "SHA-256 MISMATCH! Expected: " + expectedSha256 + " Actual: " + actualSha);
+                                outputFile.delete(); // Delete bad file
+                            }
+                        } else {
+                            Log.w("GarlicActivity", "No SHA-256 provided. Installing based on successful stream completion...");
+                            performSilentInstall(outputFile.getAbsolutePath());
+                        }
                     } else {
-                        Log.e("GarlicActivity", "Download verification FAILED. Size on disk: " + outputFile.length() + " Expected from server: " + finalTotal);
+                        Log.e("GarlicActivity", "Download verification FAILED. Size on disk: " + outputFile.length()
+                                + " Expected from server: " + finalTotal);
                     }
 
                 } catch (Exception e) {
@@ -525,6 +533,24 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 }
             }
         }).start();
+    }
+
+    private String calculateFileSha256(File file) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            InputStream is = new FileInputStream(file);
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = is.read(buffer)) > 0) {
+                digest.update(buffer, 0, read);
+            }
+            is.close();
+            byte[] hash = digest.digest();
+            return String.format("%064x", new BigInteger(1, hash));
+        } catch (Exception e) {
+            Log.e("GarlicActivity", "Failed to calculate SHA-256", e);
+            return "";
+        }
     }
 
     public void installApk(final String apkPath) {
@@ -547,7 +573,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                     PackageInstaller.Session session = packageInstaller.openSession(sessionId);
 
                     try (OutputStream out = session.openWrite("OTA_UPDATE", 0, -1);
-                         java.io.InputStream in = new FileInputStream(apkPath)) {
+                            java.io.InputStream in = new FileInputStream(apkPath)) {
                         byte[] buffer = new byte[65536];
                         int c;
                         while ((c = in.read(buffer)) != -1) {
@@ -570,7 +596,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             }
         }
 
-        // Strategy 2: ACTION_VIEW intent — temporarily suspend kiosk so installer UI can surface
+        // Strategy 2: ACTION_VIEW intent — temporarily suspend kiosk so installer UI
+        // can surface
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -578,7 +605,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                     Log.i("GarlicActivity", "Suspending Kiosk for OTA install prompt...");
                     stopKioskMode();
 
-                    // Using FileProvider required for Android 7+ (API 24+) to avoid FileUriExposedException
+                    // Using FileProvider required for Android 7+ (API 24+) to avoid
+                    // FileUriExposedException
                     android.net.Uri apkUri = androidx.core.content.FileProvider.getUriForFile(
                             getApplicationContext(),
                             getPackageName() + ".fileprovider",
@@ -600,8 +628,6 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         });
     }
 
-
-
     public static class InstallationReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -618,9 +644,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     public static native void notifyVpnStateChanged(int state);
+
     public static native void notifyVpnError(String message);
+
     public static int getVpnState() {
         return GarlicVpnService.getVpnState();
     }
+
     public static native void notifyOtaProgress(long received, long total);
 }

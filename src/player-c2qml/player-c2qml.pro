@@ -48,17 +48,12 @@ android {
        android_brandings/GarlicPlayer/android/AndroidManifest.xml \
        android_brandings/LAPlayer/android/AndroidManifest.xml
 
-    isEmpty(BRANDING): BRANDING = GarlicPlayer
 
     contains(BRANDING, GarlicPlayer) {
         ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android_brandings/GarlicPlayer/android/
-        DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicActivity\\\"
-        DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/sagiadinos/garlic/player/java/GarlicVpnService\\\"
     }
     contains(BRANDING, LAPlayer) {
         ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android_brandings/LAPlayer/android/
-        DEFINES += ANDROID_ACTIVITY_PATH=\\\"com/laplayer/player/java/GarlicActivity\\\"
-        DEFINES += ANDROID_VPN_SERVICE_PATH=\\\"com/laplayer/player/java/GarlicVpnService\\\"
     }
 
     # release build crashs when start debugging

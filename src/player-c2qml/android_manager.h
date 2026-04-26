@@ -46,7 +46,7 @@ class AndroidManager : public QObject
         void openNetworkSettings();
         
         // OTA Updates
-        void triggerOtaDownload(const QString &url);
+        void triggerOtaDownload(const QString &url, const QString &sha256 = "");
 
         // Kiosk Mode escape hatch
         void startKioskMode();

@@ -1,11 +1,21 @@
 #!/bin/bash
 
 # Configuration
-VERSION_CODE=${1:-1004}
+VERSION_CODE=""
 SKIP_BUILD=false
 
-if [[ "$*" == *"--skip-build"* ]]; then
-    SKIP_BUILD=true
+for arg in "$@"; do
+    if [[ "$arg" == "--skip-build" ]]; then
+        SKIP_BUILD=true
+    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        VERSION_CODE="$arg"
+    fi
+done
+
+# If no numeric version provided, extract from latest git tag (e.g., v1.0.1006 -> 1006)
+if [ -z "$VERSION_CODE" ]; then
+    LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.1000")
+    VERSION_CODE=$(echo $LATEST_TAG | awk -F. '{print $NF}')
 fi
 
 BRANDING="LAPlayer"

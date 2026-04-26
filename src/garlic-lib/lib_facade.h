@@ -58,6 +58,7 @@ class LibFacade : public QObject
         Q_PROPERTY(bool isDownloading READ isDownloading NOTIFY downloadStatusChanged)
         Q_PROPERTY(double downloadProgress READ downloadProgress NOTIFY downloadStatusChanged)
         Q_PROPERTY(QString downloadLabel READ downloadLabel NOTIFY downloadStatusChanged)
+        Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     public:
         explicit LibFacade(QObject *parent = nullptr);
         ~LibFacade();
@@ -84,6 +85,7 @@ class LibFacade : public QObject
         bool               isDownloading() const { return m_isDownloading; }
         double             downloadProgress() const { return m_downloadProgress; }
         QString            downloadLabel() const { return m_downloadLabel; }
+        QString            appVersion() const;
         void               notifyOtaProgress(qint64 received, qint64 total);
     public slots:
         void               initParser();

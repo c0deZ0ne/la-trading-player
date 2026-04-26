@@ -111,7 +111,7 @@ signals:
     void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
     void requestSystemReport();
-    void requestOtaDownload(QString url);
+    void requestOtaDownload(QString url, QString sha256);
 
 private slots:
     void handleRegistrationResponse(QNetworkReply *reply);
@@ -133,6 +133,7 @@ private:
     // Auto-registration state
     QString m_enrollmentToken;
     QString m_managementBaseUrl;
+    QString m_tenantId;
     bool m_isRegistered;
     QNetworkAccessManager *m_networkManager;
 

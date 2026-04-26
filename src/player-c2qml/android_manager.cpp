@@ -16,6 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "android_manager.h"
+#include "lib_facade.h"
 #include <jni.h>
 
 AndroidManager* AndroidManager::m_instance = nullptr;
@@ -41,6 +42,16 @@ static void notifyVpnError(JNIEnv *env, jobject obj, jstring message)
     }
 }
 
+static void notifyOtaProgress(JNIEnv *env, jobject obj, jlong received, jlong total)
+{
+    Q_UNUSED(env);
+    Q_UNUSED(obj);
+    extern LibFacade *GlobalLibfacede;
+    if (GlobalLibfacede) {
+        GlobalLibfacede->notifyOtaProgress(received, total);
+    }
+}
+
 AndroidManager::AndroidManager()
 {
     m_instance = this;
@@ -52,7 +63,8 @@ AndroidManager::AndroidManager()
     if (clazz) {
         JNINativeMethod methods[] = {
             {(char*)"notifyVpnStateChanged", (char*)"(I)V", (void *)&notifyVpnStateChanged},
-            {(char*)"notifyVpnError", (char*)"(Ljava/lang/String;)V", (void *)&notifyVpnError}
+            {(char*)"notifyVpnError", (char*)"(Ljava/lang/String;)V", (void *)&notifyVpnError},
+            {(char*)"notifyOtaProgress", (char*)"(JJ)V", (void *)&notifyOtaProgress}
         };
         if (env->RegisterNatives(clazz, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
             qCritical() << "[JNI] FAILED to register native methods for Activity!";
@@ -263,15 +275,18 @@ void AndroidManager::openNetworkSettings()
 #endif
 }
 
-void AndroidManager::triggerOtaDownload(const QString &url)
+void AndroidManager::triggerOtaDownload(const QString &url, const QString &sha256)
 {
-    qDebug() << "[OTA][CPP] AndroidManager::triggerOtaDownload() called. URL:" << url;
+    qDebug() << "[OTA][CPP] AndroidManager::triggerOtaDownload() called. URL:" << url << "SHA:" << sha256;
 #if defined Q_OS_ANDROID
-    QtAndroid::runOnAndroidThread([url]() {
+    QtAndroid::runOnAndroidThread([url, sha256]() {
         QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", "()L" ANDROID_ACTIVITY_PATH ";");
         if (MyActivity.isValid()) {
             QAndroidJniObject jUrl = QAndroidJniObject::fromString(url);
-            MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;)V", jUrl.object<jstring>());
+            QAndroidJniObject jSha = QAndroidJniObject::fromString(sha256);
+            MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;)V", 
+                                       jUrl.object<jstring>(),
+                                       jSha.object<jstring>());
         } else {
             qCritical() << "[OTA][CPP] FAILED to obtain GarlicActivity instance for download!";
         }

@@ -69,7 +69,7 @@ void RemoteManagementManager::handleCommand(QTcpSocket *socket, const QJsonObjec
     } else if (type == "FILE_LS") {
         handleFileLs(socket, command["path"].toString());
     } else if (type == "OTA_UPDATE") {
-        handleOtaUpdate(socket, command["url"].toString());
+        handleOtaUpdate(socket, command);
     } else if (type == "SET_CONFIG") {
         handleSetConfig(socket, command["config"].toObject());
     } else {
@@ -144,65 +144,51 @@ void RemoteManagementManager::handleSetConfig(QTcpSocket *socket, const QJsonObj
     sendResponse(socket, resp);
 }
 
-void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QString &url)
+void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObject &command)
 {
-    qDebug() << "[OTA] Starting update from:" << url;
+    QString url = command["url"].toString();
+    if (url.isEmpty()) url = command["apkUrl"].toString(); // Support both keys
     
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QNetworkRequest request(url);
-    QNetworkReply *reply = manager->get(request);
+    QString sha = command["sha256"].toString();
+    if (sha.isEmpty()) sha = command["sha256Hash"].toString(); 
+    if (sha.isEmpty()) sha = command["hash"].toString(); // Support backend 'hash' key
 
-    // Get reference to LibFacade for progress reporting
-    extern LibFacade *GlobalLibfacede;
+    qInfo() << "[RemoteMgmt][OTA] Remote Push received. URL:" << url << "SHA:" << sha;
 
-    connect(reply, &QNetworkReply::downloadProgress, [socket, reply, this](qint64 received, qint64 total) {
-        if (GlobalLibfacede) {
-            GlobalLibfacede->notifyOtaProgress(received, total);
-        }
+    QJsonObject resp;
+    if (url.isEmpty()) {
+        resp["status"] = "ERROR";
+        resp["message"] = "No download URL provided";
+        sendResponse(socket, resp);
+        return;
+    }
+
+    // Delegate to the robust Java-based downloader (Fixes OOM crashes)
+    #if defined Q_OS_ANDROID
+    // Note: Since we need to respond to the socket, we trigger the download 
+    // but the actual progress will be visible on the device UI.
+    // We send a success response to the management API to indicate the command was accepted.
+    QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", QString("()L" + QString(ANDROID_ACTIVITY_PATH) + ";").toLocal8Bit().data());
+    if (MyActivity.isValid()) {
+        QAndroidJniObject jUrl = QAndroidJniObject::fromString(url);
+        QAndroidJniObject jSha = QAndroidJniObject::fromString(sha);
+        MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;)V", 
+                                   jUrl.object<jstring>(),
+                                   jSha.object<jstring>());
         
-        QJsonObject progress;
-        progress["type"] = "OTA_PROGRESS";
-        progress["received"] = received;
-        progress["total"] = total;
-        sendResponse(socket, progress);
-    });
-
-    connect(reply, &QNetworkReply::finished, [socket, reply, manager, this, url]() {
-        // Clear progress on UI
-        if (GlobalLibfacede) {
-            GlobalLibfacede->notifyOtaProgress(0, 0);
-        }
-
-        if (reply->error() == QNetworkReply::NoError) {
-            QString path = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) + "/update.apk";
-            QFile file(path);
-            if (file.open(QIODevice::WriteOnly)) {
-                file.write(reply->readAll());
-                file.close();
-                
-                QJsonObject resp;
-                resp["status"] = "DOWNLOAD_COMPLETE";
-                resp["path"] = path;
-                sendResponse(socket, resp);
-
-                // Trigger Android Install via Java Bridge
-                #if defined Q_OS_ANDROID
-                QAndroidJniObject jPath = QAndroidJniObject::fromString(path);
-                QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod("com/laplayer/player/java/GarlicActivity", "getInstance", "()Lcom/laplayer/player/java/GarlicActivity;");
-                if (MyActivity.isValid()) {
-                    MyActivity.callMethod<void>("installApk", "(Ljava/lang/String;)V", jPath.object<jstring>());
-                }
-                #endif
-            }
-        } else {
-            QJsonObject err;
-            err["status"] = "ERROR";
-            err["message"] = reply->errorString();
-            sendResponse(socket, err);
-        }
-        reply->deleteLater();
-        manager->deleteLater();
-    });
+        resp["status"] = "OTA_STARTED";
+        resp["message"] = "Download initiated on device";
+        sendResponse(socket, resp);
+    } else {
+        resp["status"] = "ERROR";
+        resp["message"] = "GarlicActivity instance not found";
+        sendResponse(socket, resp);
+    }
+    #else
+    resp["status"] = "ERROR";
+    resp["message"] = "OTA push only supported on Android";
+    sendResponse(socket, resp);
+    #endif
 }
 
 void RemoteManagementManager::onDisconnected()

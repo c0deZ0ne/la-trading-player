@@ -19,7 +19,16 @@ fi
 
 VERSION_NAME=`git --git-dir="$GIT_DIR/.git" describe --tags $(git --git-dir="$GIT_DIR/.git" rev-list --tags --max-count=1) 2>/dev/null || echo "v1.0"`
 
-export GARLIC_VERSION=${VERSION_NAME%%-*}.$COMMIT_NUMBER
+# If the version name already ends with the commit number, don't append it again
+if [[ "$VERSION_NAME" == *"$COMMIT_NUMBER" ]]; then
+    export GARLIC_VERSION=$VERSION_NAME
+elif [[ "$VERSION_NAME" == *"v$COMMIT_NUMBER" ]]; then
+    export GARLIC_VERSION=$VERSION_NAME
+else
+    # Remove any existing commit-like suffix and append the current one
+    BASE_VERSION=$(echo $VERSION_NAME | sed -E 's/\.[0-9]+$//')
+    export GARLIC_VERSION="$BASE_VERSION.$COMMIT_NUMBER"
+fi
 
 echo 
 echo ========== write header file and version information to Androidmanifest
@@ -27,5 +36,14 @@ echo
 
 echo "#define version_from_git \"$GARLIC_VERSION\"" > $GIT_DIR/src/garlic-lib/version.h
 
-# xmlstarlet edit --inplace --update "/manifest/@android:versionName" --value $GARLIC_VERSION $GIT_DIR/src/player-c2qml/android_brandings/GarlicPlayer/android/AndroidManifest.xml
-# xmlstarlet edit --inplace --update "/manifest/@android:versionCode" --value $COMMIT_NUMBER $GIT_DIR/src/player-c2qml/android_brandings/GarlicPlayer/android/AndroidManifest.xml
+# Determine the correct manifest path based on the branding (defaulting to LAPlayer)
+MANIFEST_PATH="$GIT_DIR/src/player-c2qml/android_brandings/${BRANDING:-LAPlayer}/android/AndroidManifest.xml"
+
+if [ -f "$MANIFEST_PATH" ]; then
+    echo "Updating Manifest: $MANIFEST_PATH"
+    # Update versionName and versionCode using sed (Standard on Git Bash)
+    sed -i "s/android:versionName=\"[^\"]*\"/android:versionName=\"$GARLIC_VERSION\"/" "$MANIFEST_PATH"
+    sed -i "s/android:versionCode=\"[^\"]*\"/android:versionCode=\"$COMMIT_NUMBER\"/" "$MANIFEST_PATH"
+else
+    echo "Warning: Manifest not found at $MANIFEST_PATH"
+fi

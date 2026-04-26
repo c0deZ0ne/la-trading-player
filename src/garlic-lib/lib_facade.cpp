@@ -16,6 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************************/
 #include "lib_facade.h"
+#include "tools/main_configuration.hpp"
 #include <QNetworkProxyFactory>
 #include <QNetworkProxy>
 #include <QNetworkProxyQuery>
@@ -41,6 +42,8 @@ LibFacade::LibFacade(QObject *parent) : QObject(parent)
        qDebug() << "hostname" << p.hostName();
 
     connect(&RebootTimer, SIGNAL(reboot(QString)), this, SLOT(reboot(QString)));
+    m_downloadProgress = 0.0;
+    m_downloadLabel = "";
 }
 
 LibFacade::~LibFacade()
@@ -87,6 +90,16 @@ void LibFacade::init(MainConfiguration *config)
 ResourceMonitor *LibFacade::getResourceMonitor()
 {
     return &MyResourceMonitor;
+}
+
+QString LibFacade::appVersion() const
+{
+    QString version = MyConfiguration->getVersion();
+    QString buildCode = MyConfiguration->getBuildVersion();
+    if (!buildCode.isEmpty()) {
+        return QString("%1 (%2)").arg(version).arg(buildCode);
+    }
+    return version;
 }
 
 void LibFacade::saveVpnConfig()
@@ -360,10 +373,17 @@ void LibFacade::updateDownloadStatus()
     QString oldLabel = m_downloadLabel;
 
     // OTA takes precedence
-    if (m_otaTotal > 0) {
+    if (m_otaTotal > 0 || m_otaReceived > 0) {
         m_isDownloading = true;
-        m_downloadProgress = (double)m_otaReceived / m_otaTotal;
-        m_downloadLabel = QString("Updating System Software (%1%)").arg((int)(m_downloadProgress * 100));
+        if (m_otaTotal > 0) {
+            m_downloadProgress = (double)m_otaReceived / m_otaTotal;
+            m_downloadLabel = QString("Updating System Software (%1%)").arg((int)(m_downloadProgress * 100));
+        } else {
+            // Sawtooth pattern: Cycle from 5% to 95% every 1MB to show activity
+            double cycle = (double)(m_otaReceived % (1024 * 1024)) / (1024 * 1024);
+            m_downloadProgress = 0.05 + (cycle * 0.90);
+            m_downloadLabel = QString("Updating System Software... (%1 MB)").arg(QString::number(m_otaReceived / (1024.0 * 1024.0), 'f', 1));
+        }
     } else {
         // Fallback to media queue or idle
         m_isDownloading = false;
@@ -389,6 +409,11 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
         return;
     }
 
+    if (MyConfiguration->getStaticHardwareId() == "DEVICE_OWNER_REQUIRED") {
+        emit initFailed("Security Error: Device Owner status required. Please run ADB setup.");
+        return;
+    }
+
     emit initStarted();
     qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
 
@@ -397,9 +422,13 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-    QJsonObject json;
-    json["deviceId"] = MyConfiguration->getUuid();
+    QJsonObject json = MyConfiguration->getSystemMetadata();
     json["enrollmentToken"] = token;
+    
+    // Override playlistUrl if a specific one was provided in the UI
+    if (!playlistUrl.isEmpty()) {
+        json["playlistUrl"] = playlistUrl;
+    }
     
     // Include Wireguard Public Key if available
     if (!MyVpnConfiguration.isNull()) {

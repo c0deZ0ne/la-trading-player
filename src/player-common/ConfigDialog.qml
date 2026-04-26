@@ -77,12 +77,17 @@ Rectangle {
     states: [
         State {
             name: "input"
-            when: !root.isConnecting && !root.isSuccess
+            when: !root.isConnecting && !root.isSuccess && LibFacade.downloadProgress <= 0
             PropertyChanges { target: loadingOverlay; opacity: 0; visible: false }
         },
         State {
             name: "connecting"
-            when: root.isConnecting && !root.isSuccess
+            when: root.isConnecting && !root.isSuccess && LibFacade.downloadProgress <= 0
+            PropertyChanges { target: loadingOverlay; opacity: 1; visible: true }
+        },
+        State {
+            name: "ota"
+            when: LibFacade.downloadProgress > 0 && !root.isSuccess
             PropertyChanges { target: loadingOverlay; opacity: 1; visible: true }
         },
         State {
@@ -362,6 +367,16 @@ Rectangle {
                             wrapMode: Text.WordWrap
                         }
 
+                        // Version Label
+                        Text {
+                            text: "Version: " + (LibFacade ? LibFacade.appVersion : "---")
+                            color: "#444444"
+                            font.pixelSize: root.smallFontSize * 0.7
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.topMargin: -10
+                        }
+
                         // Bottom Padding
                         Item { Layout.preferredHeight: 20 }
                     }
@@ -423,11 +438,36 @@ Rectangle {
                 }
 
                 Text {
-                    text: root.isSuccess ? "Starting Garlic Player..." : "Please wait while we sync with CMS"
+                    text: root.isSuccess ? "Starting Garlic Player..." : (LibFacade.downloadProgress > 0 ? LibFacade.downloadLabel : "Please wait while we sync with CMS")
                     color: "#888888"
                     font.pixelSize: 14
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
+                }
+
+                ProgressBar {
+                    id: otaProgress
+                    visible: LibFacade.downloadProgress > 0 && LibFacade.downloadProgress < 1.0
+                    value: LibFacade.downloadProgress
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 6
+                    background: Rectangle {
+                        implicitWidth: 200
+                        implicitHeight: 6
+                        color: "#333333"
+                        radius: 3
+                    }
+                    contentItem: Item {
+                        implicitWidth: 200
+                        implicitHeight: 6
+
+                        Rectangle {
+                            width: otaProgress.visualPosition * parent.width
+                            height: parent.height
+                            radius: 3
+                            color: "#ffff00"
+                        }
+                    }
                 }
             }
         }

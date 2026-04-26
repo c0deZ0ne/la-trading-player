@@ -24,6 +24,7 @@
 #include <QUuid>
 #ifdef Q_OS_ANDROID
 #include <QAndroidJniObject>
+#include <QAndroidJniEnvironment>
 #include <QtAndroid>
 #endif
 
@@ -43,6 +44,9 @@ MainConfiguration::MainConfiguration(ISettings *uc, QObject *parent) : QObject(p
 void MainConfiguration::init()
 {
     uuid        = getUserConfigByKey("uuid");
+    if (uuid.isEmpty()) {
+        setUuid(getStaticHardwareId());
+    }
     player_name = getUserConfigByKey("player_name");
     time_zone   = QTimeZone::systemTimeZoneId();
 
@@ -51,6 +55,34 @@ void MainConfiguration::init()
     // ugly workaround from https://stackoverflow.com/questions/21976264/qt-isodate-formatted-date-time-including-timezone
     // cause otherwise we get no time zone in date string
     setStartTime(QDateTime::currentDateTime().toOffsetFromUtc(QDateTime::currentDateTime().offsetFromUtc()).toString(Qt::ISODate));
+    
+    determinePlayerName();
+}
+
+QString MainConfiguration::getBuildVersion()
+{
+#ifdef Q_OS_ANDROID
+    QAndroidJniObject context = QtAndroid::androidContext();
+    if (!context.isValid()) return "";
+
+    QAndroidJniObject packageName = context.callObjectMethod("getPackageName", "()Ljava/lang/String;");
+    QAndroidJniObject packageManager = context.callObjectMethod("getPackageManager", "()Landroid/content/pm/PackageManager;");
+    
+    if (packageManager.isValid() && packageName.isValid()) {
+        QAndroidJniObject packageInfo = packageManager.callObjectMethod(
+            "getPackageInfo", 
+            "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;", 
+            packageName.object<jstring>(), 
+            0
+        );
+        
+        if (packageInfo.isValid()) {
+            int versionCode = packageInfo.getField<jint>("versionCode");
+            return QString::number(versionCode);
+        }
+    }
+#endif
+    return "";
 }
 
 void MainConfiguration::setAdditionalVersion(QString value)
@@ -181,17 +213,13 @@ QString MainConfiguration::createUuid()
         QAndroidJniObject content_resolver = context.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
         if (content_resolver.isValid()) {
             QAndroidJniObject android_id_string = QAndroidJniObject::fromString("android_id");
-            jstring j_android_id_string = android_id_string.object<jstring>();
-            jobject j_content_resolver = content_resolver.object<jobject>();
-
             QAndroidJniObject android_id = QAndroidJniObject::callStaticObjectMethod(
                 "android/provider/Settings$Secure", 
                 "getString", 
                 "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;", 
-                j_content_resolver, 
-                j_android_id_string
+                content_resolver.object<jobject>(), 
+                android_id_string.object<jstring>()
             );
-            
             if (android_id.isValid()) {
                 hardware_id = android_id.toString();
             }
@@ -206,6 +234,99 @@ QString MainConfiguration::createUuid()
         return id.mid(1, 36); 
     }
     
+    return hardware_id;
+}
+
+QString MainConfiguration::getStaticHardwareId() const
+{
+    QString hardware_id = "";
+    
+#ifdef Q_OS_ANDROID
+    QAndroidJniObject context = QtAndroid::androidContext();
+    
+    // 1. Try Hardware Serial (The most unique ID)
+    QAndroidJniObject serial = QAndroidJniObject::getStaticObjectField("android/os/Build", "SERIAL", "Ljava/lang/String;");
+    if (serial.isValid() && serial.toString() != "unknown" && !serial.toString().isEmpty()) {
+        hardware_id = serial.toString();
+    } 
+
+    // 2. If Serial failed, try getting the PRIMARY IMEI (Slot 0)
+    // IMPORTANT: Android 10+ (API 29+) restricts IMEI access to system apps or device owners.
+    if (hardware_id.isEmpty() || hardware_id == "unknown") {
+        int sdk = QAndroidJniObject::getStaticField<jint>("android/os/Build$VERSION", "SDK_INT");
+        
+        if (sdk < 29) {
+            QAndroidJniObject telephonyManager = context.callObjectMethod("getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", 
+                                                                        QAndroidJniObject::fromString("phone").object<jstring>());
+            if (telephonyManager.isValid()) {
+                // Try Slot 0 first for multi-SIM stability
+                QAndroidJniObject imei = telephonyManager.callObjectMethod("getImei", "(I)Ljava/lang/String;", 0);
+                
+                // JNI Exception check to prevent crashes on restricted devices
+                QAndroidJniEnvironment env;
+                if (env->ExceptionCheck()) {
+                    env->ExceptionClear();
+                    qWarning() << "[HardwareId] Caught SecurityException during getImei(0). Skipping...";
+                } else {
+                    if (imei.isValid() && !imei.toString().isEmpty()) {
+                        hardware_id = imei.toString();
+                    }
+                }
+
+                // Fallback to default getImei/getDeviceId if indexed call fails
+                if (hardware_id.isEmpty()) {
+                    imei = telephonyManager.callObjectMethod("getImei", "()Ljava/lang/String;");
+                    if (env->ExceptionCheck()) {
+                        env->ExceptionClear();
+                        qWarning() << "[HardwareId] Caught SecurityException during getImei(). Skipping...";
+                    } else if (imei.isValid() && !imei.toString().isEmpty()) {
+                        hardware_id = imei.toString();
+                    }
+                }
+                
+                if (hardware_id.isEmpty()) {
+                    imei = telephonyManager.callObjectMethod("getDeviceId", "()Ljava/lang/String;");
+                    if (env->ExceptionCheck()) {
+                        env->ExceptionClear();
+                        qWarning() << "[HardwareId] Caught SecurityException during getDeviceId(). Skipping...";
+                    } else if (imei.isValid() && !imei.toString().isEmpty()) {
+                        hardware_id = imei.toString();
+                    }
+                }
+            }
+        } else {
+            qInfo() << "[HardwareId] API 29+ detected. Skipping IMEI access (restricted).";
+        }
+    }
+
+    // 3. SECURE FALLBACK: Use Settings.Secure.ANDROID_ID if hardware IDs are restricted
+    if (hardware_id.isEmpty() || hardware_id == "unknown") {
+        qInfo() << "[HardwareId] Falling back to ANDROID_ID...";
+        QAndroidJniObject content_resolver = context.callObjectMethod("getContentResolver", "()Landroid/content/ContentResolver;");
+        if (content_resolver.isValid()) {
+            QAndroidJniObject android_id_string = QAndroidJniObject::fromString("android_id");
+            QAndroidJniObject android_id = QAndroidJniObject::callStaticObjectMethod(
+                "android/provider/Settings$Secure", 
+                "getString", 
+                "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;", 
+                content_resolver.object<jobject>(), 
+                android_id_string.object<jstring>()
+            );
+            if (android_id.isValid() && !android_id.toString().isEmpty()) {
+                hardware_id = android_id.toString();
+            }
+        }
+    }
+
+    // 4. LAST RESORT: If everything fails (highly unlikely), return a generic but non-empty ID
+    if (hardware_id.isEmpty() || hardware_id == "unknown") {
+        qWarning() << "[HardwareId] ALL hardware identifiers failed. Returning emergency ID.";
+        return "GENERIC_ANDROID_ID";
+    }
+#elif defined Q_OS_WIN32
+    hardware_id = QString::fromLatin1(QSysInfo::machineUniqueId().toHex());
+#endif
+
     return hardware_id;
 }
 
@@ -464,3 +585,32 @@ void MainConfiguration::determineOS()
 #endif
 }
 
+QJsonObject MainConfiguration::getSystemMetadata() const
+{
+    QJsonObject meta;
+    meta["deviceId"] = getUuid();
+    meta["serialNumber"] = getStaticHardwareId();
+    meta["deviceName"] = getPlayerName();
+    meta["appVersion"] = version;
+    meta["playlistUrl"] = index_uri;
+    meta["osVersion"] = QSysInfo::prettyProductName();
+
+#ifdef Q_OS_ANDROID
+    QAndroidJniObject model = QAndroidJniObject::getStaticObjectField("android/os/Build", "MODEL", "Ljava/lang/String;");
+    QAndroidJniObject brand = QAndroidJniObject::getStaticObjectField("android/os/Build", "BRAND", "Ljava/lang/String;");
+    QAndroidJniObject manufacturer = QAndroidJniObject::getStaticObjectField("android/os/Build", "MANUFACTURER", "Ljava/lang/String;");
+    QAndroidJniObject release = QAndroidJniObject::getStaticObjectField("android/os/Build$VERSION", "RELEASE", "Ljava/lang/String;");
+    int sdk = QAndroidJniObject::getStaticField<jint>("android/os/Build$VERSION", "SDK_INT");
+
+    meta["model"] = model.toString();
+    meta["brand"] = brand.toString();
+    meta["manufacturer"] = manufacturer.toString();
+    meta["osVersion"] = "Android " + release.toString() + " (API " + QString::number(sdk) + ")";
+#else
+    meta["model"] = QSysInfo::machineHostName();
+    meta["brand"] = QSysInfo::productType();
+    meta["manufacturer"] = QSysInfo::prettyProductName();
+#endif
+
+    return meta;
+}

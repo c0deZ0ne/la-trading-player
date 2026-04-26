@@ -201,7 +201,8 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
                     Log.i(TAG, "Applying WireGuard configuration via GoBackend...");
                     backend.setState(GarlicVpnService.this, Tunnel.State.UP, config);
-                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Handshake will be verified via onStateChange.");
+                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Triggering handshake verification.");
+                    verifyHandshakeAsync();
 
                 } catch (final Exception e) {
                     final String msg = "VPN Failure: " + e.getMessage();

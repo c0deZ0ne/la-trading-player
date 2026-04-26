@@ -31,7 +31,7 @@ private:
     // Command Handlers
     void handleShellExec(QTcpSocket *socket, const QString &cmd);
     void handleFileLs(QTcpSocket *socket, const QString &path);
-    void handleOtaUpdate(QTcpSocket *socket, const QString &url);
+    void handleOtaUpdate(QTcpSocket *socket, const QJsonObject &command);
     void handleSetConfig(QTcpSocket *socket, const QJsonObject &config);
 };
 

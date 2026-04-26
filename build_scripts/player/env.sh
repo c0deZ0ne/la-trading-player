@@ -15,10 +15,6 @@ if [ -z "QT_BASE_PATH" ]; then
 fi
 ##################################################################
 
-# create directory name
-export SHADOW_BUILD_DIR=build-$QT_VERSION-$CONFIG_DEBUG_RELEASE
-
-
 # check if called from jenkins to set correct paths
 if [ -z "$BUILD_NUMBER" ]; then
 	GARLIC_DIR=$(cygpath -m "$(cd "$SCRIPTDIR/../.." && pwd)")
@@ -29,6 +25,9 @@ else
 fi
 
 export DEPLOY_SUFFIX=$GARLIC_VERSION
+
+# create directory name using the app version
+export SHADOW_BUILD_DIR=build-$GARLIC_VERSION-$CONFIG_DEBUG_RELEASE
 
 # create diretory for deployed files
 export PACKAGE_DIR=../packages

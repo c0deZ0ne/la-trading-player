@@ -142,6 +142,10 @@ int main(int argc, char *argv[])
         MyAndroidManager->stopVpnTunnel();
     });
 
+    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url) {
+        MyAndroidManager->triggerOtaDownload(url);
+    });
+
     QObject::connect(MyAndroidManager, &AndroidManager::vpnStatusChanged, vpnConfig, [vpnConfig](int status) {
         vpnConfig->setStatus(static_cast<WireguardConfig::VpnStatus>(status));
     });
@@ -170,16 +174,19 @@ int main(int argc, char *argv[])
         MyLibFacade->forceSystemReport();
     });
 
-    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url) {
-        qDebug() << "[Wireguard][OTA] OTA Download requested via signal. URL:" << url;
-        MyAndroidManager->triggerOtaDownload(url);
+    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url, QString sha256) {
+        qDebug() << "[Wireguard][OTA] OTA Download requested via signal. URL:" << url << "SHA:" << sha256;
+        MyAndroidManager->triggerOtaDownload(url, sha256);
     });
     
-    // Auto-start VPN if enabled (Non-blocking)
+    // Auto-start VPN if enabled (Optimized timing to remove bottlenecks)
     if (vpnConfig->getIsEnabled()) {
-        qDebug() << "[Wireguard][AUTOSTART] VPN is enabled, scheduled to start in 5s...";
-        QTimer::singleShot(5000, vpnConfig, [vpnConfig]() {
-            qDebug() << "[Wireguard][AUTOSTART] Triggering delayed VPN start...";
+        int bootDelay = vpnConfig->getIsRegistered() ? 1000 : 3000;
+        qDebug() << "[Wireguard][AUTOSTART] VPN enabled. Registered:" << vpnConfig->getIsRegistered() 
+                 << " - Starting in" << bootDelay << "ms";
+                 
+        QTimer::singleShot(bootDelay, vpnConfig, [vpnConfig]() {
+            qDebug() << "[Wireguard][AUTOSTART] Triggering optimized VPN start...";
             vpnConfig->startVpn();
         });
     }

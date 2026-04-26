@@ -175,10 +175,26 @@ public class GarlicVpnService extends VpnService implements Tunnel {
 
                     Log.i(TAG, "Applying WireGuard configuration via GoBackend...");
                     backend.setState(GarlicVpnService.this, Tunnel.State.UP, config);
-                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Awaiting handshake...");
+                    Log.i(TAG, "GoBackend.setState(UP) completed successfully. Triggering handshake verification.");
+                    verifyHandshakeAsync();
 
-                    GarlicActivity.notifyVpnStateChanged(1); // Connecting
+                } catch (Exception e) {
+                    String msg = "VPN Failure: " + e.getMessage();
+                    Log.e(TAG, msg, e);
+                    GarlicActivity.notifyVpnError(msg);
+                    GarlicActivity.notifyVpnStateChanged(0); // ERROR/DOWN
+                }
+            }
+        });
+    }
 
+    private void verifyHandshakeAsync() {
+        GarlicActivity.notifyVpnStateChanged(1); // Connecting
+
+        executorService.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
                     boolean handshakeSuccessful = false;
                     Log.i(TAG, "Awaiting handshake (up to 30s)...");
                     for (int i = 0; i < 30; i++) {
@@ -190,8 +206,8 @@ public class GarlicVpnService extends VpnService implements Tunnel {
                             try {
                                 rx = stats.totalRx();
                                 tx = stats.totalTx();
-                                Log.d(TAG, "Handshake attempt " + (i+1) + ": Tx=" + tx + " B, Rx=" + rx + " B");
-                                
+                                Log.d(TAG, "Handshake attempt " + (i + 1) + ": Tx=" + tx + " B, Rx=" + rx + " B");
+
                                 // Successful handshake usually results in >0 Rx bytes from the peer
                                 if (rx > 0) {
                                     handshakeSuccessful = true;
@@ -203,11 +219,12 @@ public class GarlicVpnService extends VpnService implements Tunnel {
                     }
 
                     if (handshakeSuccessful) {
-                        Log.i(TAG, "WireGuard Handshake verified successfully.");
+                        Log.i(TAG, "VPN Handshake verified successfully.");
                         GarlicActivity.notifyVpnStateChanged(2); // Connected
                     } else {
                         backend.setState(GarlicVpnService.this, Tunnel.State.DOWN, null);
-                        throw new Exception("Timeout: No handshake response from VPN Server after 30 seconds. Verify that Server Public Key is correct and that the server has this device registered.");
+                        throw new Exception(
+                                "Timeout: No handshake response from VPN Server after 30 seconds. Verify that Server Public Key is correct and that the server has this device registered.");
                     }
 
                 } catch (Exception e) {

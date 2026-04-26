@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.laplayer.player" android:versionName="v1.0.1004" android:versionCode="1004" android:installLocation="auto">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.laplayer.player" android:versionName="v1.0.1009" android:versionCode="1009" android:installLocation="auto">
   <!-- The following comment will be replaced upon deployment with default permissions based on the dependencies of the application.
          Remove the comment if you do not require these default permissions. -->
   <!-- %%INSERT_PERMISSIONS -->
@@ -70,6 +70,7 @@
             <!-- extract android style -->
         </activity>
     <receiver android:name="com.laplayer.player.java.SmilIndexReceiver" android:enabled="true"/>
+    <receiver android:name="com.laplayer.player.java.GarlicActivity$InstallationReceiver" android:enabled="true" android:exported="true"/>
     <receiver android:name="com.laplayer.player.java.ConfigReceiver" android:enabled="true"/>
     <receiver android:name="com.laplayer.player.java.BootReceiver" android:enabled="true" android:exported="true">
         <intent-filter>
@@ -107,19 +108,19 @@
   </application>
   <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29"/>
 
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 </manifest>
 
 

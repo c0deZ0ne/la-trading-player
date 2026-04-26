@@ -55,62 +55,65 @@ class MainConfiguration  : public QObject, public IMainConfiguration
 
 
         explicit        MainConfiguration(ISettings *uc, QObject *parent = Q_NULLPTR);
-        void            init();
-        QString         getVersion(){return version;}
-        void            setAdditionalVersion(QString value);
-        void            setAppName(QString value){app_name = value;}
-        QString         getAppName(){return app_name;}
-        QString         getDescription() {return "SMIL Player for Digital Signage";}
+        void            init() override;
+        QString         getVersion() override {return version;}
+        QString         getBuildVersion() override;
+        void            setAdditionalVersion(QString value) override;
+        void            setAppName(QString value) override {app_name = value;}
+        QString         getAppName() override {return app_name;}
+        QString         getDescription() override {return "SMIL Player for Digital Signage";}
 
         static QString  log_directory;
         static QString  getLogDir();
 
-        void            setLastPlayedIndexPath(const QString &value);
-        QSettings      *getUserConfig();
-        QString         getUserConfigByKey(QString key);
-        void            setUserConfigByKey(QString key, QString value);
-        QString         createUuid();
-        void            setUuid(const QString &value);
-        void            setPlayerName(const QString &value);
-        void            determinePlayerName();
-        QString         determineApiAccessToken(QString username, QString password);
-        QString         getApiAccessToken();
-        QString         getApiAccessTokenExpire();
+        void            setLastPlayedIndexPath(const QString &value) override;
+        QSettings      *getUserConfig() override;
+        QString         getUserConfigByKey(QString key) override;
+        void            setUserConfigByKey(QString key, QString value) override;
+        QString         createUuid() override;
+        QString         getStaticHardwareId() const override;
+        void            setUuid(const QString &value) override;
+        void            setPlayerName(const QString &value) override;
+        void            determinePlayerName() override;
+        QString         determineApiAccessToken(QString username, QString password) override;
+        QString         getApiAccessToken() override;
+        QString         getApiAccessTokenExpire() override;
 
-        Q_INVOKABLE QString         getUuid() const;
-        Q_INVOKABLE QString         getPlayerName() const;
-        void            setLogDir(const QString &value);
-        void            setUserAgent(const QString &value);
-        QString         getUserAgent() const;
-        Q_INVOKABLE QString         getIndexUri();
-        QString         getOS() const;
-        QString         getIndexPath();
-        QString         getTimeZone() const;
-        QString         getBasePath() const;;
-        QString         getErrorText() const;;
+        Q_INVOKABLE QString         getUuid() const override;
+        Q_INVOKABLE QString         getPlayerName() const override;
+        void            setLogDir(const QString &value) override;
+        void            setUserAgent(const QString &value) override;
+        QString         getUserAgent() const override;
+        Q_INVOKABLE QString         getIndexUri() override;
+        QString         getOS() const override;
+        QString         getIndexPath() override;
+        QString         getTimeZone() const override;
+        QString         getBasePath() const override;
+        QString         getErrorText() const override;
 
-        void            setValidatedContentUrl(const QString &value);
-        QString         getValidatedContentUrl();
-        void            setStandbyMode(const QString &value);
-        QString         getStandbyMode();
-        void            setRebootDays(const QString &value);
-        QString         getRebootDays();
-        void            setRebootTime(const QString &value);
-        QString         getRebootTime();
-        QString         getLastPlayedIndexPath();
-        QString         getStartTime() const;
-        void            setStartTime(const QString &value);
-        QString         getPaths(QString path_name);
-        void            setIndexUri(const QString &value);
-        void            setIndexPath(const QString &value);
+        void            setValidatedContentUrl(const QString &value) override;
+        QString         getValidatedContentUrl() override;
+        void            setStandbyMode(const QString &value) override;
+        QString         getStandbyMode() override;
+        void            setRebootDays(const QString &value) override;
+        QString         getRebootDays() override;
+        void            setRebootTime(const QString &value) override;
+        QString         getRebootTime() override;
+        QString         getLastPlayedIndexPath() override;
+        QString         getStartTime() const override;
+        void            setStartTime(const QString &value) override;
+        QJsonObject     getSystemMetadata() const override;
+        QString         getPaths(QString path_name) override;
+        void            setIndexUri(const QString &value) override;
+        void            setIndexPath(const QString &value) override;
 //        void            setNetworkInterface(const QString &value);
 //        QString         getNetworkInterface();
-        void            setBasePath(const QString &value);
-        void            determineBasePath(QString absolute_path_to_bin);
-        void            determineIndexUri(const QString &value);
-        void            createDirectories();
-        bool            validateContentUrl(QString url_string);
-        void            determineUserAgent();
+        void            setBasePath(const QString &value) override;
+        void            determineBasePath(QString absolute_path_to_bin) override;
+        void            determineIndexUri(const QString &value) override;
+        void            createDirectories() override;
+        bool            validateContentUrl(QString url_string) override;
+        void            determineUserAgent() override;
 
 private:
         ISettings      *MySettings;

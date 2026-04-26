@@ -23,7 +23,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     : QObject(parent)
     , m_mainConfig(mainConfig)
     , m_publicKey("")
-    , m_serverPublicKey("47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8=")  // current server pub key
+    , m_serverPublicKey("")  // Fetched dynamically via handshake
     , m_serverEndpoint("107.172.34.199:51820")
     , m_virtualIp("")
     , m_allowedIps("0.0.0.0/0")
@@ -50,8 +50,6 @@ void WireguardConfig::load()
     m_privateKey      = m_mainConfig->getUserConfigByKey("vpn_private_key");
     m_publicKey       = m_mainConfig->getUserConfigByKey("vpn_public_key");
     m_serverPublicKey = m_mainConfig->getUserConfigByKey("vpn_server_public_key");
-    if (m_serverPublicKey.isEmpty())
-        m_serverPublicKey = "47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8=";
 
     m_serverEndpoint = m_mainConfig->getUserConfigByKey("vpn_server_endpoint");
     if (m_serverEndpoint.isEmpty()) m_serverEndpoint = "107.172.34.199:51820";
@@ -62,6 +60,7 @@ void WireguardConfig::load()
 
     m_isEnabled    = (m_mainConfig->getUserConfigByKey("vpn_enabled") == "true");
     m_isRegistered = (m_mainConfig->getUserConfigByKey("vpn_registered") == "true");
+    m_tenantId     = m_mainConfig->getUserConfigByKey("vpn_tenant_id");
 
     // Restore saved enrollment token if one was persisted
     QString savedToken = m_mainConfig->getUserConfigByKey("vpn_enrollment_token");
@@ -106,6 +105,7 @@ void WireguardConfig::save()
     m_mainConfig->setUserConfigByKey("vpn_allowed_ips",    m_allowedIps);
     m_mainConfig->setUserConfigByKey("vpn_enabled",        m_isEnabled ? "true" : "false");
     m_mainConfig->setUserConfigByKey("vpn_registered",     m_isRegistered ? "true" : "false");
+    m_mainConfig->setUserConfigByKey("vpn_tenant_id",      m_tenantId);
 }
 
 // ─── Getters / Setters ────────────────────────────────────────────────────────
@@ -231,7 +231,9 @@ bool WireguardConfig::isConfigComplete() const
 
 void WireguardConfig::startVpn()
 {
-    if (m_status == Connecting || m_status == Registering) {
+    // DEADLOCK FIX: Don't block 'Registering' if the config is now complete.
+    // If we are 'Connecting', we are already talking to the Android VpnService.
+    if (m_status == Connecting) {
         qInfo() << "[Wireguard] Connection already in progress. Ignoring request.";
         return;
     }
@@ -291,8 +293,7 @@ void WireguardConfig::performHandshake()
     QString deviceId = getPlayerName();
 
     // Build JSON body matching DeviceRegistrationDto exactly
-    QJsonObject payload;
-    payload["deviceId"]        = deviceId;
+    QJsonObject payload = m_mainConfig->getSystemMetadata();
     payload["publicKey"]       = m_publicKey;
     payload["enrollmentToken"] = m_enrollmentToken;  // required field in DTO
 
@@ -346,6 +347,7 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     if (!serverKey.isEmpty()) m_serverPublicKey = serverKey;
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
+    m_tenantId     = obj.value("tenantId").toString();
     m_isRegistered = true;
     save();
 
@@ -369,10 +371,14 @@ void WireguardConfig::checkOtaUpdate()
     QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-check");
     QUrlQuery query;
     query.addQueryItem("versionCode", QString::number(currentVersion));
+    if (!m_tenantId.isEmpty()) {
+        query.addQueryItem("tenantId", m_tenantId);
+    }
     url.setQuery(query);
 
     QNetworkRequest request(url);
     request.setRawHeader("x-device-id", getPlayerName().toUtf8());
+    request.setRawHeader("x-enrollment-token", m_enrollmentToken.toUtf8());
     QNetworkReply *reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         handleOtaResponse(reply);
@@ -394,8 +400,9 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
     QJsonObject obj = doc.object();
     if (obj.value("updateAvailable").toBool()) {
         QString downloadUrl = obj.value("downloadUrl").toString();
-        qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! URL:" << downloadUrl;
-        emit requestOtaDownload(downloadUrl);
+        QString sha256 = obj.value("sha256Hash").toString();
+        qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! URL:" << downloadUrl << "SHA:" << sha256;
+        emit requestOtaDownload(downloadUrl, sha256);
     } else {
         qDebug() << "[Wireguard][OTA] Device is up to date.";
     }
@@ -404,9 +411,29 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
 void WireguardConfig::resetRegistration()
 {
     qInfo() << "[Wireguard] Resetting registration state.";
+
+    // 1. Notify Backend to free IP
+    if (m_isRegistered && !m_tenantId.isEmpty()) {
+        qInfo() << "[Wireguard] Notifying VPC to release Virtual IP...";
+        QNetworkRequest request(QUrl(m_managementBaseUrl + "/api/v1/devices/vpn-deregister"));
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QJsonObject payload;
+        payload["deviceId"] = m_mainConfig->getUuid();
+        payload["tenantId"] = m_tenantId;
+
+        m_networkManager->post(request, QJsonDocument(payload).toJson());
+    }
+
+    // 2. Destroy Tunnel (Defuse the Time Bomb)
+    qInfo() << "[Wireguard] Killing active tunnel before wipe...";
+    stopVpn();
+
+    // 3. Wipe Memory & Save
     m_isRegistered = false;
     m_virtualIp    = "";
-    m_serverPublicKey = "47ssGU8AP8fO98hRRkxGVCkwU9ZoveTMjgMm/K2Glm8="; // Fallback to initial
+    m_tenantId     = "";
+    m_serverPublicKey = ""; // Force re-fetch
     m_serverEndpoint = "107.172.34.199:51820";
 
     save();
