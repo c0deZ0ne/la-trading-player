@@ -375,14 +375,29 @@ void LibFacade::updateDownloadStatus()
     // OTA takes precedence
     if (m_otaTotal > 0 || m_otaReceived > 0) {
         m_isDownloading = true;
+        double receivedMB = m_otaReceived / (1024.0 * 1024.0);
+
         if (m_otaTotal > 0) {
+            // Known file size — show exact progress: "6.15 / 44.50 MB (14%)"
             m_downloadProgress = (double)m_otaReceived / m_otaTotal;
-            m_downloadLabel = QString("Updating System Software (%1%)").arg((int)(m_downloadProgress * 100));
+            double totalMB    = m_otaTotal / (1024.0 * 1024.0);
+            int pct           = (int)(m_downloadProgress * 100);
+            m_downloadLabel = QString("Updating... %1 / %2 MB  (%3%)")
+                    .arg(QString::number(receivedMB, 'f', 2))
+                    .arg(QString::number(totalMB,    'f', 2))
+                    .arg(pct);
         } else {
-            // Sawtooth pattern: Cycle from 5% to 95% every 1MB to show activity
-            double cycle = (double)(m_otaReceived % (1024 * 1024)) / (1024 * 1024);
-            m_downloadProgress = 0.05 + (cycle * 0.90);
-            m_downloadLabel = QString("Updating System Software... (%1 MB)").arg(QString::number(m_otaReceived / (1024.0 * 1024.0), 'f', 1));
+            // Chunked / unknown size — QML scanner bar handles the animation,
+            // progress = 0.0 keeps the determinate bar invisible.
+            m_downloadProgress = 0.0;
+            m_downloadLabel = QString("Updating... %1 MB downloaded")
+                    .arg(QString::number(receivedMB, 'f', 2));
+        }
+
+        static qint64 lastLog = 0;
+        if (m_otaReceived - lastLog > 512 * 1024) { // Log every 512KB
+             qDebug() << "[LibFacade][OTA] Progress:" << m_otaReceived << "/" << m_otaTotal;
+             lastLog = m_otaReceived;
         }
     } else {
         // Fallback to media queue or idle
