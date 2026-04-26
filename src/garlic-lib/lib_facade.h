@@ -158,3 +158,6 @@ class LibFacade : public QObject
 };
 
 #endif // LIB_FACADE_H
+
+class LibFacade;
+extern LibFacade *GlobalLibfacede;

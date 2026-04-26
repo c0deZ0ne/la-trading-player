@@ -456,7 +456,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: vpnRoot.statusMessage !== "" ? vpnRoot.statusMessage : "Establishing Tunnel..."
+                    text: LibFacade.isDownloading ? LibFacade.downloadLabel : (vpnRoot.statusMessage !== "" ? vpnRoot.statusMessage : "Establishing Tunnel...")
                     color: "white"
                     font.pixelSize: 18
                     font.weight: Font.DemiBold
@@ -465,34 +465,40 @@ Rectangle {
                 }
 
                 Text {
-                    text: vpnRoot.state === "REGISTERING" ? "Contacting VPC Gateway..." : (LibFacade.isDownloading ? "Downloading Package..." : "Negotiating Tunnel Handshake...")
+                    id: detailText
+                    text: vpnRoot.state === "REGISTERING" ? "Contacting VPC Gateway..." : (LibFacade.isDownloading ? "Please wait, do not turn off the device" : "Negotiating Tunnel Handshake...")
                     color: "#888888"
                     font.pixelSize: 14
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                ProgressBar {
-                    id: otaVpnProgress
+                Item {
                     visible: LibFacade.isDownloading
-                    value: LibFacade.downloadProgress > 0 ? LibFacade.downloadProgress : 0.01
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 6
-                    background: Rectangle {
-                        implicitWidth: 200
-                        implicitHeight: 6
-                        color: "#333333"
-                        radius: 3
-                    }
-                    contentItem: Item {
-                        implicitWidth: 200
-                        implicitHeight: 6
+                    Layout.preferredHeight: 10
+                    Layout.topMargin: 5
 
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "#333333"
+                        radius: 5
+                    }
+
+                    Rectangle {
+                        width: Math.max(parent.height, parent.width * LibFacade.downloadProgress)
+                        height: parent.height
+                        radius: 5
+                        color: "#00e5ff"
+                        
+                        // Add a glow/shine effect
                         Rectangle {
-                            width: otaVpnProgress.visualPosition * parent.width
-                            height: parent.height
-                            radius: 3
-                            color: "#00e5ff"
+                            anchors.fill: parent
+                            radius: 5
+                            color: "transparent"
+                            border.color: "#80FFFFFF"
+                            border.width: 1
+                            opacity: 0.3
                         }
                     }
                 }

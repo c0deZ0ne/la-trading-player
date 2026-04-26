@@ -163,6 +163,19 @@ void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObj
         return;
     }
 
+    // Loop Prevention: Only update if the pushed version is NEWER
+    int pushedVersion = command["versionCode"].toInt();
+    int currentVersion = GlobalLibfacede->getConfiguration()->getBuildVersion().toInt();
+    
+    if (pushedVersion > 0 && pushedVersion <= currentVersion) {
+        qInfo() << "[RemoteMgmt][OTA] Skipping update. Pushed version" << pushedVersion 
+                << "is not newer than current" << currentVersion;
+        resp["status"] = "SKIPPED";
+        resp["message"] = "Already on version " + QString::number(currentVersion);
+        sendResponse(socket, resp);
+        return;
+    }
+
     // Delegate to the robust Java-based downloader (Fixes OOM crashes)
     #if defined Q_OS_ANDROID
     // Note: Since we need to respond to the socket, we trigger the download 
@@ -172,9 +185,10 @@ void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObj
     if (MyActivity.isValid()) {
         QAndroidJniObject jUrl = QAndroidJniObject::fromString(url);
         QAndroidJniObject jSha = QAndroidJniObject::fromString(sha);
-        MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;)V", 
+        MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;I)V",
                                    jUrl.object<jstring>(),
-                                   jSha.object<jstring>());
+                                   jSha.object<jstring>(),
+                                   (jint)pushedVersion);
         
         resp["status"] = "OTA_STARTED";
         resp["message"] = "Download initiated on device";

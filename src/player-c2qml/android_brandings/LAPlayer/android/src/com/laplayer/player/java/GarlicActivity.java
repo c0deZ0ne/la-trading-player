@@ -154,9 +154,10 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             return;
         String updateUrl = intent.getStringExtra("updateUrl");
         String sha256 = intent.getStringExtra("sha256");
+        int versionCode = intent.getIntExtra("versionCode", 0);
         if (updateUrl != null && !updateUrl.isEmpty()) {
-            Log.i("GarlicActivity", "Internal Intent Triggered OTA: " + updateUrl);
-            downloadAndInstall(updateUrl, sha256 != null ? sha256 : "");
+            Log.i("GarlicActivity", "Internal Intent Triggered OTA: " + updateUrl + " versionCode=" + versionCode);
+            downloadAndInstall(updateUrl, sha256 != null ? sha256 : "", versionCode);
         }
     }
 
@@ -436,7 +437,30 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         startActivity(intent);
     }
 
+    // Called from C++ JNI — versionCode=0 means "unknown, skip version check"
     public void downloadAndInstall(final String urlString, final String expectedSha256) {
+        downloadAndInstall(urlString, expectedSha256, 0);
+    }
+
+    public void downloadAndInstall(final String urlString, final String expectedSha256, final int requestedVersionCode) {
+        // --- CLIENT-SIDE VERSION GUARD ---
+        // Refuse to download if the pushed version is not strictly newer than what is installed.
+        if (requestedVersionCode > 0) {
+            try {
+                int installedVersionCode = getPackageManager()
+                        .getPackageInfo(getPackageName(), 0).versionCode;
+                if (requestedVersionCode <= installedVersionCode) {
+                    Log.i("GarlicActivity", "OTA SKIPPED: pushed version " + requestedVersionCode
+                            + " is not newer than installed " + installedVersionCode);
+                    return;
+                }
+                Log.i("GarlicActivity", "OTA ACCEPTED: updating from " + installedVersionCode
+                        + " to " + requestedVersionCode);
+            } catch (Exception e) {
+                Log.w("GarlicActivity", "Could not read installed versionCode: " + e.getMessage());
+            }
+        }
+
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -451,8 +475,8 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
 
                     URL url = new URL(urlString);
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                    connection.setConnectTimeout(60000); // 60s timeout
-                    connection.setReadTimeout(60000);    // 60s timeout
+                    connection.setConnectTimeout(15000); // 15s to establish connection
+                    connection.setReadTimeout(60000);    // 60s to wait for data (handles stalls)
 
                     // Set Range header if we have partial file
                     if (existingSize > 0) {
@@ -486,13 +510,18 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
 
                     try (InputStream input = connection.getInputStream();
                             OutputStream output = new FileOutputStream(outputFile, isResume)) {
-                        byte[] data = new byte[16384];
+                        byte[] data = new byte[131072]; // 128KB buffer for better throughput
                         int count;
+                        long lastReportTime = 0;
+                        
                         while ((count = input.read(data)) != -1) {
                             output.write(data, 0, count);
                             totalRead += count;
-                            // Log progress and notify UI every 1MB
-                            if (totalRead % (1024 * 1024) < 16384 || totalRead == finalTotal) {
+                            
+                            // Log and notify UI at most every 500ms or 512KB
+                            long now = System.currentTimeMillis();
+                            if (now - lastReportTime > 500 || totalRead == finalTotal) {
+                                lastReportTime = now;
                                 Log.i("GarlicActivity", "Download progress: " + (totalRead / 1024) + " KB");
                                 try {
                                     notifyOtaProgress(totalRead, finalTotal);
@@ -565,34 +594,50 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
                 if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
                     Log.i("GarlicActivity", "Device Owner detected — using DPM silent install");
-                    PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
+
+                    // Use application context for PackageInstaller to survive process death
+                    PackageInstaller packageInstaller = getApplicationContext()
+                            .getPackageManager().getPackageInstaller();
+
                     PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
                             PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                    // Tell the system this is a non-incremental install with a known size
+                    File apkFile = new File(apkPath);
+                    long apkSize = apkFile.length();
+                    params.setSize(apkSize);
 
                     int sessionId = packageInstaller.createSession(params);
-                    PackageInstaller.Session session = packageInstaller.openSession(sessionId);
+                    Log.i("GarlicActivity", "PackageInstaller session created: " + sessionId);
 
-                    try (OutputStream out = session.openWrite("OTA_UPDATE", 0, -1);
-                            java.io.InputStream in = new FileInputStream(apkPath)) {
-                        byte[] buffer = new byte[65536];
-                        int c;
-                        while ((c = in.read(buffer)) != -1) {
-                            out.write(buffer, 0, c);
+                    try (PackageInstaller.Session session = packageInstaller.openSession(sessionId)) {
+                        try (OutputStream out = session.openWrite("OTA_UPDATE", 0, apkSize);
+                                java.io.InputStream in = new FileInputStream(apkFile)) {
+                            byte[] buffer = new byte[65536];
+                            int c;
+                            long written = 0;
+                            while ((c = in.read(buffer)) != -1) {
+                                out.write(buffer, 0, c);
+                                written += c;
+                            }
+                            session.fsync(out);
+                            Log.i("GarlicActivity", "APK written to session: " + written + " bytes");
                         }
-                        session.fsync(out);
-                    }
 
-                    Intent broadcastIntent = new Intent(getApplicationContext(), InstallationReceiver.class);
-                    PendingIntent pi = PendingIntent.getBroadcast(
-                            getApplicationContext(), sessionId, broadcastIntent,
-                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-                    session.commit(pi.getIntentSender());
-                    session.close();
-                    Log.i("GarlicActivity", "DPM install session committed.");
+                        Intent broadcastIntent = new Intent(getApplicationContext(), InstallationReceiver.class);
+                        broadcastIntent.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                        PendingIntent pi = PendingIntent.getBroadcast(
+                                getApplicationContext(), sessionId, broadcastIntent,
+                                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
+                        session.commit(pi.getIntentSender());
+                        Log.i("GarlicActivity", "DPM install session committed. Waiting for system to apply...");
+                    }
                     return;
+                } else {
+                    Log.w("GarlicActivity", "Not a Device Owner — falling back to install intent");
                 }
             } catch (Exception e) {
-                Log.e("GarlicActivity", "DPM install failed, falling back to intent: " + e.getMessage());
+                Log.e("GarlicActivity", "DPM install failed, falling back to intent: " + e.getMessage(), e);
             }
         }
 
@@ -633,7 +678,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         public void onReceive(Context context, Intent intent) {
             int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
             String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-            Log.i("GarlicActivity", "Installation Result: Status=" + status + ", Message=" + message);
+            Log.i("GarlicActivity", "InstallationReceiver: status=" + status + " message=" + message);
 
             if (status == PackageInstaller.STATUS_SUCCESS) {
                 Log.i("GarlicActivity", "UPDATE SUCCESSFUL. OS will restart the app.");
