@@ -473,32 +473,61 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
+                // OTA Progress Bar - dual mode: determinate (known size) or indeterminate (chunked)
                 Item {
+                    id: otaBarContainer
                     visible: LibFacade.isDownloading
                     Layout.fillWidth: true
                     Layout.preferredHeight: 10
                     Layout.topMargin: 5
 
+                    // Track bar background
                     Rectangle {
                         anchors.fill: parent
-                        color: "#333333"
+                        color: "#1E1E1E"
                         radius: 5
+                        border.color: "#333"
+                        border.width: 1
                     }
 
+                    // Determinate fill — only shown when we have a known total
                     Rectangle {
-                        width: Math.max(parent.height, parent.width * LibFacade.downloadProgress)
+                        id: determinateBar
+                        visible: LibFacade.downloadProgress > 0 && LibFacade.downloadProgress < 1.0
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        radius: 5
+                        color: "#00E5FF"
+                        width: parent.width * LibFacade.downloadProgress
+
+                        Behavior on width {
+                            SmoothedAnimation { velocity: 60; duration: 300 }
+                        }
+                    }
+
+                    // Indeterminate scanner — runs when progress is in the sawtooth (0.05-0.95 range)
+                    // or when determinate bar isn't visible
+                    Rectangle {
+                        id: scannerBar
+                        visible: !determinateBar.visible
+                        width: parent.width * 0.35
                         height: parent.height
                         radius: 5
-                        color: "#00e5ff"
-                        
-                        // Add a glow/shine effect
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 5
-                            color: "transparent"
-                            border.color: "#80FFFFFF"
-                            border.width: 1
-                            opacity: 0.3
+                        color: "#00E5FF"
+                        opacity: 0.85
+                        x: -width
+
+                        SequentialAnimation on x {
+                            running: scannerBar.visible
+                            loops: Animation.Infinite
+                            NumberAnimation {
+                                from: -scannerBar.width
+                                to: otaBarContainer.width
+                                duration: 1400
+                                easing.type: Easing.InOutCubic
+                            }
+                            PauseAnimation { duration: 100 }
                         }
                     }
                 }

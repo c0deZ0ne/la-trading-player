@@ -503,31 +503,45 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                     }
 
                     long totalToDownload = connection.getContentLength();
-                    Log.i("GarlicActivity", "Content-Length to download: " + totalToDownload);
+                    Log.i("GarlicActivity", "Content-Length: " + totalToDownload + " finalTotal will be: " + (isResume ? totalToDownload + existingSize : totalToDownload));
 
                     long totalRead = isResume ? existingSize : 0;
-                    long finalTotal = isResume ? (totalToDownload + existingSize) : totalToDownload;
+                    final long finalTotal = isResume ? (totalToDownload + existingSize) : totalToDownload;
+
+                    // Use a Handler to post progress to C++/Qt WITHOUT blocking the download thread
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    final long[] lastReportRef = {0};
 
                     try (InputStream input = connection.getInputStream();
-                            OutputStream output = new FileOutputStream(outputFile, isResume)) {
-                        byte[] data = new byte[131072]; // 128KB buffer for better throughput
+                            OutputStream output = new java.io.BufferedOutputStream(
+                                    new FileOutputStream(outputFile, isResume), 131072)) {
+
+                        byte[] data = new byte[131072]; // 128KB read buffer
                         int count;
-                        long lastReportTime = 0;
-                        
+
                         while ((count = input.read(data)) != -1) {
                             output.write(data, 0, count);
                             totalRead += count;
-                            
-                            // Log and notify UI at most every 500ms or 512KB
+
+                            final long currentRead = totalRead;
                             long now = System.currentTimeMillis();
-                            if (now - lastReportTime > 500 || totalRead == finalTotal) {
-                                lastReportTime = now;
-                                Log.i("GarlicActivity", "Download progress: " + (totalRead / 1024) + " KB");
-                                try {
-                                    notifyOtaProgress(totalRead, finalTotal);
-                                } catch (UnsatisfiedLinkError e) {
-                                    // JNI not linked yet, ignore
-                                }
+
+                            // Report to UI every 250ms — async so download thread is never blocked
+                            if (now - lastReportRef[0] > 250 || currentRead == finalTotal) {
+                                lastReportRef[0] = now;
+                                Log.i("GarlicActivity", "Download progress: " + (currentRead / 1024) + " KB / "
+                                        + (finalTotal > 0 ? (finalTotal / 1024) + " KB" : "unknown"));
+
+                                mainHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            notifyOtaProgress(currentRead, finalTotal);
+                                        } catch (UnsatisfiedLinkError e) {
+                                            // JNI not yet linked, ignore
+                                        }
+                                    }
+                                });
                             }
                         }
                         output.flush();
