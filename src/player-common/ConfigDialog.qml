@@ -438,7 +438,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: root.isSuccess ? "Starting Garlic Player..." : (LibFacade.downloadProgress > 0 ? LibFacade.downloadLabel : "Please wait while we sync with CMS")
+                    text: root.isSuccess ? "Starting Garlic Player..." : (LibFacade.isDownloading ? LibFacade.downloadLabel : "Please wait while we sync with CMS")
                     color: "#888888"
                     font.pixelSize: 14
                     Layout.fillWidth: true
