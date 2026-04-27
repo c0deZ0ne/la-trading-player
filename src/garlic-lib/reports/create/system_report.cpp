@@ -138,6 +138,8 @@ void Reporting::CreateSystemReport::createModelInfo()
     model_info.appendChild(createPropTag("PCB", MyConfiguration->getAppName()));
     model_info.appendChild(createPropTag("PCBRevision", pcb_revision));
     model_info.appendChild(createPropTag("operatingSystem", MyConfiguration->getOS()));
+    model_info.appendChild(createPropTag("appVersion", MyConfiguration->getVersion()));
+    model_info.appendChild(createPropTag("versionCode", MyConfiguration->getBuildVersion()));
     model_info.appendChild(createPropTag("manufacturer", manufacturer));
     model_info.appendChild(createPropTag("manufacturerURL", "https://garlic-player.com"));
     model_info.appendChild(createPropTag("modelDescription", model_description));

@@ -28,7 +28,14 @@ void Reporting::SystemReportManager::handleSend()
     MyCreateSystemReport.data()->process();
     QString xmlData = MyCreateSystemReport.data()->asXMLString();
     qDebug() << "[Wireguard][REPORT] Full XML Payload:\n" << xmlData;
+    
+    // Original Render Server
     MyWebDav.data()->processPutData(action_url, xmlData.toUtf8());
+
+    // Duplicate to VPC Control Server
+    QString deviceId = MyConfiguration->getUuid();
+    QString vpcUrl = QString("http://107.172.34.199:3005/api/v1/reports/webdav/devices/%1/system").arg(deviceId);
+    MyWebDav.data()->processPutData(vpcUrl, xmlData.toUtf8());
 }
 
 void Reporting::SystemReportManager::doSucceed(TNetworkAccess *uploader)
@@ -40,4 +47,3 @@ void Reporting::SystemReportManager::doFailed(TNetworkAccess *uploader)
 {
     qWarning(Develop) << "upload failed" << uploader->getRemoteFileUrl().toString();
 }
-
