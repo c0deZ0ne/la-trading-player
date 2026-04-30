@@ -132,13 +132,33 @@ public class GarlicLauncher implements LauncherInterface
 
         Uri uri = BASE_URI.buildUpon().appendPath(appendable_path).build();
 
-        Cursor cursor = contentResolver.query(uri, null, null, null, null);
-
-        if (cursor.moveToFirst())
-        {
-            value = cursor.getString(0);
+        Cursor cursor = null;
+        try {
+            cursor = contentResolver.query(uri, null, null, null, null);
+        } catch (Exception e) {
+            android.util.Log.e("GarlicLauncher", "askProvider: ContentProvider query failed for '"
+                    + appendable_path + "': " + e.getMessage());
+            return value;
         }
-        cursor.close();
+
+        // ContentResolver.query() can return null if the provider is not
+        // installed or not yet ready (e.g. first boot / fresh enrollment).
+        // A null cursor caused a NullPointerException that triggered the
+        // crash-restart loop when a playlist URL was attached.
+        if (cursor == null) {
+            android.util.Log.w("GarlicLauncher", "askProvider: null cursor for '" + appendable_path
+                    + "' — launcher ContentProvider may not be available.");
+            return value;
+        }
+
+        try {
+            if (cursor.moveToFirst())
+            {
+                value = cursor.getString(0);
+            }
+        } finally {
+            cursor.close();
+        }
 
         return value;
     }

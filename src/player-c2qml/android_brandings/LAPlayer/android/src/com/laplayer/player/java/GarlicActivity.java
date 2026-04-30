@@ -79,15 +79,27 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         m_instance = this;
         super.onCreate(savedInstanceState);
 
-        handleIntent(getIntent());
+        // Read how many times we have already crash-restarted in a row.
+        final int crashCount = getIntent() != null
+                ? getIntent().getIntExtra("crash_restart_count", 0)
+                : 0;
 
+        // CRITICAL: Set the handler BEFORE handleIntent or any other logic.
+        // If handleIntent crashes (e.g. bad OTA URL), we need THIS handler to catch it.
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
             public void uncaughtException(Thread thread, Throwable throwable) {
-                Log.e("GarlicActivity", "Uncaught exception: ", throwable);
+                Log.e("GarlicActivity", "Uncaught exception (crash #" + (crashCount + 1) + "): ", throwable);
+
+                if (crashCount >= 3) {
+                    Log.e("GarlicActivity", "Too many consecutive crashes. NOT restarting.");
+                    System.exit(2);
+                    return;
+                }
 
                 Intent intent = new Intent(m_instance, GarlicActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                intent.putExtra("crash_restart_count", crashCount + 1);
 
                 PendingIntent pendingIntent = PendingIntent.getActivity(
                         m_instance.getBaseContext(),
@@ -101,6 +113,9 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 System.exit(2);
             }
         });
+
+        // Now process intent (guarded by crash counter skip in handleIntent)
+        handleIntent(getIntent());
 
         if (isGarlicLauncherInstalled()) {
             is_launcher = true;
@@ -152,6 +167,16 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private void handleIntent(Intent intent) {
         if (intent == null)
             return;
+
+        // Never act on OTA extras that were carried by a crash-restart intent.
+        // A crash-restart intent only contains "crash_restart_count" and should
+        // NOT re-trigger downloads that may have caused the original crash.
+        int restartCount = intent.getIntExtra("crash_restart_count", 0);
+        if (restartCount > 0) {
+            Log.w("GarlicActivity", "handleIntent: skipping OTA extras on crash-restart intent (count=" + restartCount + ")");
+            return;
+        }
+
         String updateUrl = intent.getStringExtra("updateUrl");
         String sha256 = intent.getStringExtra("sha256");
         int versionCode = intent.getIntExtra("versionCode", 0);
@@ -449,7 +474,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             try {
                 int installedVersionCode = getPackageManager()
                         .getPackageInfo(getPackageName(), 0).versionCode;
-                if (requestedVersionCode <= installedVersionCode) {
+                if (requestedVersionCode == installedVersionCode) {
                     Log.i("GarlicActivity", "OTA SKIPPED: pushed version " + requestedVersionCode
                             + " is not newer than installed " + installedVersionCode);
                     return;

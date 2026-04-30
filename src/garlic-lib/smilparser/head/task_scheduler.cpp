@@ -74,7 +74,7 @@ void SmilHead::TaskScheduler::doSucceed(TNetworkAccess *network)
     if (!loadDocument(MyConfiguration->getPaths("cache")+"task_scheduler.xml"))
         return;
 
-    QDomNodeList node_list = document.elementsByTagName("timedTaskList");
+    QDomNodeList node_list = document.elementsByTagName("taskList");
     if (node_list.size() == 0)
         return;
 
@@ -231,7 +231,7 @@ void SmilHead::TaskScheduler::parseApplyCommand(QDomElement element)
     QDomElement child = element.firstChildElement("command");
 
     if(!child.isNull())
-       emit applyCommand(MyShutdownPlayer.task_id, child.text());
+       emit applyCommand(MyApplyCommand.task_id, child.text());
 }
 
 

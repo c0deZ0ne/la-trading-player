@@ -67,7 +67,7 @@ QString PlayerConfiguration::determineDefaultContentUrlName()
 
 QString PlayerConfiguration::determineDefaultContentUrl()
 {
-    return QString("https://la-trading-api.onrender.com/api/v1/device-playlist/%1/xml").arg(MyMainConfiguration->getStaticHardwareId());
+    return QString("http://107.172.34.199:3005/api/v1/test/garlic-way/smil/c8d8ea3b-1a92-44f6-a937-37d2ed723b62/%1").arg(MyMainConfiguration->getStaticHardwareId());
 }
 
 
