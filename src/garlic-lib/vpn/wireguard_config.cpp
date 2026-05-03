@@ -17,7 +17,7 @@ static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://107.172.34.
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
 // Devices that have already registered will skip the handshake automatically.
-static const QString DEFAULT_ENROLLMENT_TOKEN = QStringLiteral("542d5627-b53e-43b5-b90c-863f545a3c2d.38245c33");
+static const QString DEFAULT_ENROLLMENT_TOKEN = QStringLiteral("Enter your enrollment token");
 
 WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent)
     : QObject(parent)
@@ -330,11 +330,18 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
         return;
     }
 
-    QJsonObject obj = doc.object();
+    QJsonObject root = doc.object();
+    QJsonObject dataObj = root;
+
+    // Support both direct and enveloped responses
+    if (root.contains("data") && root.value("data").isObject()) {
+        dataObj = root.value("data").toObject();
+    }
+
     // Response fields match DeviceRegistrationResponseDto: clientIp, serverPublicKey, serverEndpoint
-    QString clientIp   = obj.value("clientIp").toString();
-    QString serverKey  = obj.value("serverPublicKey").toString();
-    QString endpoint   = obj.value("serverEndpoint").toString();
+    QString clientIp   = dataObj.value("clientIp").toString();
+    QString serverKey  = dataObj.value("serverPublicKey").toString();
+    QString endpoint   = dataObj.value("serverEndpoint").toString();
 
     if (clientIp.isEmpty()) {
         setVpnError("Registration failed: server returned no virtual IP.");
@@ -347,7 +354,7 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     if (!serverKey.isEmpty()) m_serverPublicKey = serverKey;
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
-    m_tenantId     = obj.value("tenantId").toString();
+    m_tenantId     = dataObj.value("tenantId").toString();
     m_isRegistered = true;
     save();
 
@@ -397,10 +404,17 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull() || !doc.isObject()) return;
 
-    QJsonObject obj = doc.object();
-    if (obj.value("updateAvailable").toBool()) {
-        QString downloadUrl = obj.value("downloadUrl").toString();
-        QString sha256 = obj.value("sha256Hash").toString();
+    QJsonObject root = doc.object();
+    QJsonObject dataObj = root;
+
+    // Support both direct and enveloped responses for robustness
+    if (root.contains("data") && root.value("data").isObject()) {
+        dataObj = root.value("data").toObject();
+    }
+
+    if (dataObj.value("updateAvailable").toBool()) {
+        QString downloadUrl = dataObj.value("downloadUrl").toString();
+        QString sha256 = dataObj.value("sha256Hash").toString();
         qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! URL:" << downloadUrl << "SHA:" << sha256;
         emit requestOtaDownload(downloadUrl, sha256);
     } else {

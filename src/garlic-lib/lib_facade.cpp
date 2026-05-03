@@ -470,11 +470,17 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
             // 2. Setup VPN if returned
             if (!MyVpnConfiguration.isNull()) {
                 MyVpnConfiguration->setEnrollmentToken(token);
-                if (obj.contains("vpnConfig")) {
-                    QJsonObject vpn = obj["vpnConfig"].toObject();
-                    MyVpnConfiguration->setVirtualIp(vpn["virtualIp"].toString());
-                    MyVpnConfiguration->setServerPublicKey(vpn["serverPublicKey"].toString());
-                    MyVpnConfiguration->setServerEndpoint(vpn["endpoint"].toString());
+                
+                // Response is flattened (matches WireguardConfig::handleRegistrationResponse)
+                QString clientIp  = obj.value("clientIp").toString();
+                QString serverKey = obj.value("serverPublicKey").toString();
+                QString endpoint  = obj.value("serverEndpoint").toString();
+
+                if (!clientIp.isEmpty()) {
+                    MyVpnConfiguration->setVirtualIp(clientIp);
+                    if (!serverKey.isEmpty()) MyVpnConfiguration->setServerPublicKey(serverKey);
+                    if (!endpoint.isEmpty())  MyVpnConfiguration->setServerEndpoint(endpoint);
+                    
                     MyVpnConfiguration->setIsEnabled(true);
                     MyVpnConfiguration->setIsRegistered(true);
                 }
