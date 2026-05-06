@@ -12,7 +12,7 @@
 
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
-static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://107.172.34.199:3005");
+static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://178.128.46.45:3000");
 
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
@@ -24,7 +24,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_mainConfig(mainConfig)
     , m_publicKey("")
     , m_serverPublicKey("")  // Fetched dynamically via handshake
-    , m_serverEndpoint("107.172.34.199:51820")
+    , m_serverEndpoint("178.128.46.45:51820")
     , m_virtualIp("")
     , m_allowedIps("0.0.0.0/0")
     , m_isEnabled(false)
@@ -52,7 +52,7 @@ void WireguardConfig::load()
     m_serverPublicKey = m_mainConfig->getUserConfigByKey("vpn_server_public_key");
 
     m_serverEndpoint = m_mainConfig->getUserConfigByKey("vpn_server_endpoint");
-    if (m_serverEndpoint.isEmpty()) m_serverEndpoint = "107.172.34.199:51820";
+    if (m_serverEndpoint.isEmpty()) m_serverEndpoint = "178.128.46.45:51820";
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
@@ -333,9 +333,9 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     QJsonObject root = doc.object();
     QJsonObject dataObj = root;
 
-    // Support both direct and enveloped responses
-    if (root.contains("data") && root.value("data").isObject()) {
-        dataObj = root.value("data").toObject();
+    // Peel away "data" layers until we reach the actual payload
+    while (dataObj.contains("data") && dataObj.value("data").isObject()) {
+        dataObj = dataObj.value("data").toObject();
     }
 
     // Response fields match DeviceRegistrationResponseDto: clientIp, serverPublicKey, serverEndpoint
@@ -408,8 +408,8 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
     QJsonObject dataObj = root;
 
     // Support both direct and enveloped responses for robustness
-    if (root.contains("data") && root.value("data").isObject()) {
-        dataObj = root.value("data").toObject();
+    while (dataObj.contains("data") && dataObj.value("data").isObject()) {
+        dataObj = dataObj.value("data").toObject();
     }
 
     if (dataObj.value("updateAvailable").toBool()) {
@@ -448,7 +448,7 @@ void WireguardConfig::resetRegistration()
     m_virtualIp    = "";
     m_tenantId     = "";
     m_serverPublicKey = ""; // Force re-fetch
-    m_serverEndpoint = "107.172.34.199:51820";
+    m_serverEndpoint = "178.128.46.45:51820";
 
     save();
     emit virtualIpChanged();

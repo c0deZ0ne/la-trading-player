@@ -433,7 +433,7 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
 
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://107.172.34.199:3005/api/v1/devices/vpn-register");
+    QUrl url("http://178.128.46.45:3000/api/v1/devices/vpn-register");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
@@ -460,6 +460,11 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
             QByteArray response = reply->readAll();
             QJsonDocument doc = QJsonDocument::fromJson(response);
             QJsonObject obj = doc.object();
+
+            // Support both direct and enveloped responses (NestJS GlobalInterceptor)
+            while (obj.contains("data") && obj.value("data").isObject()) {
+                obj = obj.value("data").toObject();
+            }
 
             qDebug() << "Enrollment successful!";
             

@@ -198,7 +198,7 @@ void Logger::triggerUpload()
     }
     json["logs"] = logs;
 
-    QUrl url("http://107.172.34.199:3005/api/v1/kiosk/logs");
+    QUrl url("http://178.128.46.45:3000/api/v1/kiosk/logs");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
