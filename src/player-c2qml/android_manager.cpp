@@ -52,6 +52,25 @@ static void notifyOtaProgress(JNIEnv *env, jobject obj, jlong received, jlong to
     }
 }
 
+static void notifyOtaInstallResult(JNIEnv *env, jobject obj, jboolean success, jstring jStatus, jstring jMessage)
+{
+    Q_UNUSED(obj);
+    const char *statusChars  = env->GetStringUTFChars(jStatus, nullptr);
+    QString status = QString::fromUtf8(statusChars);
+    env->ReleaseStringUTFChars(jStatus, statusChars);
+
+    QString message;
+    if (jMessage != nullptr) {
+        const char *msgChars = env->GetStringUTFChars(jMessage, nullptr);
+        message = QString::fromUtf8(msgChars);
+        env->ReleaseStringUTFChars(jMessage, msgChars);
+    }
+
+    if (AndroidManager::instance()) {
+        emit AndroidManager::instance()->otaInstallResult(static_cast<bool>(success), status, message);
+    }
+}
+
 AndroidManager::AndroidManager()
 {
     m_instance = this;
@@ -64,7 +83,8 @@ AndroidManager::AndroidManager()
         JNINativeMethod methods[] = {
             {(char*)"notifyVpnStateChanged", (char*)"(I)V", (void *)&notifyVpnStateChanged},
             {(char*)"notifyVpnError", (char*)"(Ljava/lang/String;)V", (void *)&notifyVpnError},
-            {(char*)"notifyOtaProgress", (char*)"(JJ)V", (void *)&notifyOtaProgress}
+            {(char*)"notifyOtaProgress", (char*)"(JJ)V", (void *)&notifyOtaProgress},
+            {(char*)"notifyOtaInstallResult", (char*)"(ZLjava/lang/String;Ljava/lang/String;)V", (void *)&notifyOtaInstallResult}
         };
         if (env->RegisterNatives(clazz, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
             qCritical() << "[JNI] FAILED to register native methods for Activity!";
@@ -275,18 +295,21 @@ void AndroidManager::openNetworkSettings()
 #endif
 }
 
-void AndroidManager::triggerOtaDownload(const QString &url, const QString &sha256)
+void AndroidManager::triggerOtaDownload(const QString &url, const QString &sha256, int versionCode)
 {
-    qDebug() << "[OTA][CPP] AndroidManager::triggerOtaDownload() called. URL:" << url << "SHA:" << sha256;
+    qDebug() << "[OTA][CPP] AndroidManager::triggerOtaDownload() called. URL:" << url << "SHA:" << sha256 << "versionCode:" << versionCode;
 #if defined Q_OS_ANDROID
-    QtAndroid::runOnAndroidThread([url, sha256]() {
+    QtAndroid::runOnAndroidThread([url, sha256, versionCode]() {
         QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", "()L" ANDROID_ACTIVITY_PATH ";");
         if (MyActivity.isValid()) {
             QAndroidJniObject jUrl = QAndroidJniObject::fromString(url);
             QAndroidJniObject jSha = QAndroidJniObject::fromString(sha256);
-            MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;)V", 
+            // Use the 3-argument form so the Java-side client version guard fires:
+            // if requestedVersionCode == installedVersionCode → download is skipped.
+            MyActivity.callMethod<void>("downloadAndInstall", "(Ljava/lang/String;Ljava/lang/String;I)V",
                                        jUrl.object<jstring>(),
-                                       jSha.object<jstring>());
+                                       jSha.object<jstring>(),
+                                       (jint)versionCode);
         } else {
             qCritical() << "[OTA][CPP] FAILED to obtain GarlicActivity instance for download!";
         }

@@ -81,6 +81,7 @@ public:
 
     // Management API base URL (host of the NestJS backend, not the VPN port)
     void setManagementBaseUrl(const QString &url);
+    QString getManagementBaseUrl() const;
 
 public slots:
     void generateIdentity();
@@ -88,10 +89,13 @@ public slots:
     void stopVpn();
     void setVpnError(const QString &message);
 
-    // NEW: Zero-touch auto-registration slots
+    // Zero-touch auto-registration slots
     void performHandshake();
     void resetRegistration();
     void checkOtaUpdate();
+
+    // OTA Result Reporting — called from AndroidManager signal
+    void reportOtaStatus(bool success, const QString &status, const QString &message);
 
 signals:
     void publicKeyChanged();
@@ -111,7 +115,7 @@ signals:
     void requestVpnStart(QString privateKey, QString address, QString serverPubKey, QString endpoint, QString allowedIps);
     void requestVpnStop();
     void requestSystemReport();
-    void requestOtaDownload(QString url, QString sha256);
+    void requestOtaDownload(QString url, QString sha256, int versionCode);
 
 private slots:
     void handleRegistrationResponse(QNetworkReply *reply);
@@ -141,6 +145,7 @@ private:
     QTimer *m_otaTimer;
     QTimer *m_reconnectTimer;
     void handleOtaResponse(QNetworkReply *reply);
+    int m_pendingOtaVersionCode = 0; // version code of the in-flight OTA update
 };
 
 #endif // WIREGUARDCONFIG_H

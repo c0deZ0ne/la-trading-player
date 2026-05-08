@@ -46,7 +46,7 @@ class AndroidManager : public QObject
         void openNetworkSettings();
         
         // OTA Updates
-        void triggerOtaDownload(const QString &url, const QString &sha256 = "");
+        void triggerOtaDownload(const QString &url, const QString &sha256 = "", int versionCode = 0);
 
         // Kiosk Mode escape hatch
         void startKioskMode();
@@ -55,6 +55,7 @@ class AndroidManager : public QObject
     signals:
         void vpnStatusChanged(int status);
         void vpnError(QString message);
+        void otaInstallResult(bool success, QString status, QString message);
 
     protected:
         QAndroidJniObject MyActivity;

@@ -524,6 +524,7 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                             downloadAndInstall(urlString, expectedSha256);
                             return;
                         }
+                        notifyOtaInstallResult(false, "download_failed", "HTTP error: " + responseCode);
                         return;
                     }
 
@@ -582,22 +583,29 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                             String actualSha = calculateFileSha256(outputFile);
                             if (actualSha.equalsIgnoreCase(expectedSha256)) {
                                 Log.i("GarlicActivity", "SHA-256 VERIFIED. Starting install...");
+                                notifyOtaInstallResult(false, "in_progress", "Installing APK...");
                                 performSilentInstall(outputFile.getAbsolutePath());
                             } else {
                                 Log.e("GarlicActivity", "SHA-256 MISMATCH! Expected: " + expectedSha256 + " Actual: " + actualSha);
                                 outputFile.delete(); // Delete bad file
+                                notifyOtaInstallResult(false, "sha_mismatch",
+                                    "SHA-256 mismatch: expected " + expectedSha256 + " got " + actualSha);
                             }
                         } else {
                             Log.w("GarlicActivity", "No SHA-256 provided. Installing based on successful stream completion...");
+                            notifyOtaInstallResult(false, "in_progress", "Installing APK (no hash check)...");
                             performSilentInstall(outputFile.getAbsolutePath());
                         }
                     } else {
                         Log.e("GarlicActivity", "Download verification FAILED. Size on disk: " + outputFile.length()
                                 + " Expected from server: " + finalTotal);
+                        notifyOtaInstallResult(false, "download_failed",
+                            "File size mismatch: got " + outputFile.length() + " expected " + finalTotal);
                     }
 
                 } catch (Exception e) {
                     Log.e("GarlicActivity", "OTA Download error: " + e.getMessage());
+                    notifyOtaInstallResult(false, "download_failed", "Exception: " + e.getMessage());
                 }
             }
         }).start();
@@ -721,8 +729,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
 
             if (status == PackageInstaller.STATUS_SUCCESS) {
                 Log.i("GarlicActivity", "UPDATE SUCCESSFUL. OS will restart the app.");
+                try { notifyOtaInstallResult(true, "success", null); }
+                catch (UnsatisfiedLinkError e) { Log.w("GarlicActivity", "JNI notifyOtaInstallResult not linked"); }
             } else {
                 Log.e("GarlicActivity", "UPDATE FAILED: " + message);
+                try { notifyOtaInstallResult(false, "install_failed", message); }
+                catch (UnsatisfiedLinkError e) { Log.w("GarlicActivity", "JNI notifyOtaInstallResult not linked"); }
             }
         }
     }
@@ -736,4 +748,12 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     }
 
     public static native void notifyOtaProgress(long received, long total);
+
+    /**
+     * JNI callback to C++ layer reporting OTA result.
+     * success=true  → status should be "success"
+     * success=false → status is one of: in_progress, download_failed, sha_mismatch, install_failed
+     * message       → human-readable detail (null = no detail)
+     */
+    public static native void notifyOtaInstallResult(boolean success, String status, String message);
 }

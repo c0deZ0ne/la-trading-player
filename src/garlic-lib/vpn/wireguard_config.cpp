@@ -14,6 +14,11 @@
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
 static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://178.128.46.45:3000");
 
+// ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
+// Returned dynamically by the registration handshake and persisted in config.
+// This is only used on first boot (before registration) and after a factory reset.
+static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("178.128.46.45:51820");
+
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
 // Devices that have already registered will skip the handshake automatically.
@@ -24,7 +29,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_mainConfig(mainConfig)
     , m_publicKey("")
     , m_serverPublicKey("")  // Fetched dynamically via handshake
-    , m_serverEndpoint("178.128.46.45:51820")
+    , m_serverEndpoint(DEFAULT_VPN_ENDPOINT)
     , m_virtualIp("")
     , m_allowedIps("0.0.0.0/0")
     , m_isEnabled(false)
@@ -52,7 +57,7 @@ void WireguardConfig::load()
     m_serverPublicKey = m_mainConfig->getUserConfigByKey("vpn_server_public_key");
 
     m_serverEndpoint = m_mainConfig->getUserConfigByKey("vpn_server_endpoint");
-    if (m_serverEndpoint.isEmpty()) m_serverEndpoint = "178.128.46.45:51820";
+    if (m_serverEndpoint.isEmpty()) m_serverEndpoint = DEFAULT_VPN_ENDPOINT;
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
@@ -106,6 +111,7 @@ void WireguardConfig::save()
     m_mainConfig->setUserConfigByKey("vpn_enabled",        m_isEnabled ? "true" : "false");
     m_mainConfig->setUserConfigByKey("vpn_registered",     m_isRegistered ? "true" : "false");
     m_mainConfig->setUserConfigByKey("vpn_tenant_id",      m_tenantId);
+    m_mainConfig->setUserConfigByKey("vpn_enrollment_token", m_enrollmentToken); // persist any runtime changes
 }
 
 // ─── Getters / Setters ────────────────────────────────────────────────────────
@@ -206,6 +212,11 @@ QString WireguardConfig::getPlayerName() const
 void WireguardConfig::setManagementBaseUrl(const QString &url)
 {
     m_managementBaseUrl = url;
+}
+
+QString WireguardConfig::getManagementBaseUrl() const
+{
+    return m_managementBaseUrl;
 }
 
 bool WireguardConfig::getIsRegistered() const { return m_isRegistered; }
@@ -378,6 +389,11 @@ void WireguardConfig::checkOtaUpdate()
     QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-check");
     QUrlQuery query;
     query.addQueryItem("versionCode", QString::number(currentVersion));
+    // Send deviceId as a query param (matches OtaCheckDto schema)
+    // Also sent as x-device-id header below for backwards compatibility
+    if (!getPlayerName().isEmpty()) {
+        query.addQueryItem("deviceId", getPlayerName());
+    }
     if (!m_tenantId.isEmpty()) {
         query.addQueryItem("tenantId", m_tenantId);
     }
@@ -414,12 +430,53 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
 
     if (dataObj.value("updateAvailable").toBool()) {
         QString downloadUrl = dataObj.value("downloadUrl").toString();
-        QString sha256 = dataObj.value("sha256Hash").toString();
-        qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! URL:" << downloadUrl << "SHA:" << sha256;
-        emit requestOtaDownload(downloadUrl, sha256);
+        QString sha256      = dataObj.value("sha256Hash").toString();
+        // versionCode from the server is forwarded to the Java layer so the
+        // client-side duplicate-install guard (downloadAndInstall 3-arg form) fires correctly.
+        int versionCode     = dataObj.value("versionCode").toInt(0);
+        // Store so reportOtaStatus() can include it in the success POST
+        m_pendingOtaVersionCode = versionCode;
+        qInfo() << "[Wireguard][OTA] UPDATE AVAILABLE! v" << versionCode
+                << "URL:" << downloadUrl << "SHA:" << sha256;
+        emit requestOtaDownload(downloadUrl, sha256, versionCode);
     } else {
         qDebug() << "[Wireguard][OTA] Device is up to date.";
     }
+}
+
+void WireguardConfig::reportOtaStatus(bool success, const QString &status, const QString &message)
+{
+    qInfo() << "[Wireguard][OTA-STATUS] Reporting status=" << status
+            << "success=" << success
+            << (message.isEmpty() ? "" : " msg=" + message);
+
+    QJsonObject payload;
+    payload["deviceId"] = getPlayerName();
+    payload["status"]   = status;
+    // Always include the pending version code so the backend can update
+    // currentVersionCode immediately on success without waiting for the next poll.
+    if (m_pendingOtaVersionCode > 0)
+        payload["versionCode"] = m_pendingOtaVersionCode;
+    if (!message.isEmpty())
+        payload["errorMessage"] = message;
+    // Clear pending code on terminal states (success or any hard failure)
+    if (success || status == "sha_mismatch" || status == "install_failed" || status == "download_failed")
+        m_pendingOtaVersionCode = 0;
+
+    QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-status");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("x-device-id",        getPlayerName().toUtf8());
+    request.setRawHeader("x-enrollment-token", m_enrollmentToken.toUtf8());
+
+    // Fire-and-forget POST — we do not block waiting for a response
+    QNetworkReply *reply = m_networkManager->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, reply, [reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[Wireguard][OTA-STATUS] Report failed:" << reply->errorString();
+        }
+        reply->deleteLater();
+    });
 }
 
 void WireguardConfig::resetRegistration()
@@ -433,7 +490,8 @@ void WireguardConfig::resetRegistration()
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
         QJsonObject payload;
-        payload["deviceId"] = m_mainConfig->getUuid();
+        // Use getPlayerName() (hardware deviceId) — NOT getUuid() (app-install UUID)
+        payload["deviceId"] = getPlayerName();
         payload["tenantId"] = m_tenantId;
 
         m_networkManager->post(request, QJsonDocument(payload).toJson());
@@ -444,11 +502,13 @@ void WireguardConfig::resetRegistration()
     stopVpn();
 
     // 3. Wipe Memory & Save
-    m_isRegistered = false;
-    m_virtualIp    = "";
-    m_tenantId     = "";
-    m_serverPublicKey = ""; // Force re-fetch
-    m_serverEndpoint = "178.128.46.45:51820";
+    m_isRegistered    = false;
+    m_virtualIp       = "";
+    m_tenantId        = "";
+    m_serverPublicKey = ""; // Force re-fetch on next registration
+    // Restore the compiled-in default — the real endpoint is
+    // always returned by the next registration handshake anyway.
+    m_serverEndpoint  = DEFAULT_VPN_ENDPOINT;
 
     save();
     emit virtualIpChanged();
@@ -500,8 +560,12 @@ void WireguardConfig::setStatus(VpnStatus status)
             QTimer::singleShot(5000, this, &WireguardConfig::checkOtaUpdate);
         } 
         else if (m_status == Disconnected || m_status == Error) {
+            // Stop OTA polling — tunnel is gone, polls will fail and just generate noise
+            if (m_otaTimer) {
+                m_otaTimer->stop();
+            }
             if (m_isEnabled) {
-                qInfo() << "[Wireguard] Disconnected while enabled. Starting reconnect watchdog...";
+                qInfo() << "[Wireguard] Disconnected/Error while enabled. Starting reconnect watchdog...";
                 m_reconnectTimer->start();
             }
         }
@@ -510,6 +574,13 @@ void WireguardConfig::setStatus(VpnStatus status)
 
 void WireguardConfig::handleReconnect()
 {
+    // Guard: don't fire another startVpn() if registration is already in-flight.
+    // Registering takes a network round-trip — if it exceeds the 15s watchdog interval
+    // a second call would race with the first and create duplicate peer entries.
+    if (m_status == Registering || m_status == Connecting) {
+        qInfo() << "[Wireguard][Watchdog] Handshake/connect in progress — skipping watchdog tick.";
+        return;
+    }
     if (m_isEnabled && (m_status == Disconnected || m_status == Error)) {
         qInfo() << "[Wireguard][Watchdog] Re-triggering VPN start...";
         startVpn();

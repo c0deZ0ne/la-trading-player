@@ -142,9 +142,6 @@ int main(int argc, char *argv[])
         MyAndroidManager->stopVpnTunnel();
     });
 
-    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url) {
-        MyAndroidManager->triggerOtaDownload(url);
-    });
 
     QObject::connect(MyAndroidManager, &AndroidManager::vpnStatusChanged, vpnConfig, [vpnConfig](int status) {
         vpnConfig->setStatus(static_cast<WireguardConfig::VpnStatus>(status));
@@ -169,14 +166,18 @@ int main(int argc, char *argv[])
 
     QObject::connect(MyAndroidManager, &AndroidManager::vpnError, vpnConfig, &WireguardConfig::setVpnError);
 
+    // OTA install result → report back to server
+    QObject::connect(MyAndroidManager, &AndroidManager::otaInstallResult,
+                     vpnConfig, &WireguardConfig::reportOtaStatus);
+
     QObject::connect(vpnConfig, &WireguardConfig::requestSystemReport, [MyLibFacade]() {
         qDebug() << "[Wireguard][REPORT] VPN Connected. Triggering immediate system report...";
         MyLibFacade->forceSystemReport();
     });
 
-    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url, QString sha256) {
-        qDebug() << "[Wireguard][OTA] OTA Download requested via signal. URL:" << url << "SHA:" << sha256;
-        MyAndroidManager->triggerOtaDownload(url, sha256);
+    QObject::connect(vpnConfig, &WireguardConfig::requestOtaDownload, [MyAndroidManager](QString url, QString sha256, int versionCode) {
+        qDebug() << "[Wireguard][OTA] OTA Download requested via signal. URL:" << url << "SHA:" << sha256 << "v" << versionCode;
+        MyAndroidManager->triggerOtaDownload(url, sha256, versionCode);
     });
     
     // Auto-start VPN if enabled (Optimized timing to remove bottlenecks)

@@ -433,7 +433,12 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
 
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QUrl url("http://178.128.46.45:3000/api/v1/devices/vpn-register");
+    // Use the same management base URL as the VPN config — single source of truth.
+    // Do NOT hardcode the server IP here; always derive it from MyVpnConfiguration.
+    QString baseUrl = MyVpnConfiguration.isNull()
+                          ? QStringLiteral("http://178.128.46.45:3000")   // safe fallback only
+                          : MyVpnConfiguration->getManagementBaseUrl();
+    QUrl url(baseUrl + "/api/v1/devices/vpn-register");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
