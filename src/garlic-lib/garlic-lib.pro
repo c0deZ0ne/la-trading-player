@@ -8,6 +8,7 @@ lessThan(QT_MAJOR_VERSION, 6): QT += xmlpatterns
 TEMPLATE  = lib
 CONFIG   += warn_on c++11 stl
 DEFINES  += QUAZIP_STATIC QT_DEPRECATED_WARNINGS
+!isEmpty(MANAGEMENT_URL): DEFINES += MANAGEMENT_URL=\\\"$$MANAGEMENT_URL\\\"
 TARGET    = garlic
 CONFIG(release, debug|release) {
     message("release")

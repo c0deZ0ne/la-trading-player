@@ -19,7 +19,8 @@ if [ -z "$VERSION_CODE" ]; then
 fi
 
 BRANDING="LAPlayer"
-VPC_IP="178.128.46.45"
+VPC_IP="192.168.0.3"
+export MANAGEMENT_URL="http://$VPC_IP:3001"
 
 echo "===================================================="
 echo "    🚀 ONE-CLICK OTA DEPLOYMENT (Version: $VERSION_CODE)    "

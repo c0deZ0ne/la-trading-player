@@ -12,7 +12,10 @@
 
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
-static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://178.128.46.45:3000");
+#ifndef MANAGEMENT_URL
+#define MANAGEMENT_URL "http://178.128.46.45:3000"
+#endif
+static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral(MANAGEMENT_URL);
 
 // ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
 // Returned dynamically by the registration handshake and persisted in config.

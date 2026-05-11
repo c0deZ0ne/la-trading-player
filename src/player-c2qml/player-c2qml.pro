@@ -11,6 +11,7 @@ INCLUDEPATH +=../ext/quazip/includes
 INCLUDEPATH += ../garlic-lib/
 INCLUDEPATH += ../ext/zlib/
 DEFINES     += QT_DEPRECATED_WARNINGS
+!isEmpty(MANAGEMENT_URL): DEFINES += MANAGEMENT_URL=\\\"$$MANAGEMENT_URL\\\"
 
 #message(check variable: $$[ANDROID_VERSION_NAME])
 
