@@ -118,7 +118,9 @@ void LibFacade::shutDownParsing()
 void LibFacade::initParser()
 {
     emit initStarted();
-    MyIndexManager.data()->init(MyConfiguration.data()->getIndexUri());
+    QString indexUri = MyConfiguration.data()->getIndexUri();
+    syncEndpoints(indexUri);
+    MyIndexManager.data()->init(indexUri);
     MyIndexManager.data()->lookUpForUpdatedIndex();
 
     // load index from cache, because if remote check fails
@@ -165,6 +167,7 @@ void LibFacade::transferAccessKey(QChar key)
  */
 void LibFacade::reloadWithNewIndex(QString index_path)
 {
+    syncEndpoints(index_path);
     MyConfiguration->determineIndexUri(index_path);
     initParser();
 }
@@ -432,12 +435,11 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     emit initStarted();
     qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
 
+    syncEndpoints(playlistUrl);
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
     // Use the same management base URL as the VPN config — single source of truth.
     // Do NOT hardcode the server IP here; always derive it from MyVpnConfiguration.
-    QString baseUrl = MyVpnConfiguration.isNull()
-                          ? QStringLiteral("http://178.128.46.45:3000")   // safe fallback only
-                          : MyVpnConfiguration->getManagementBaseUrl();
+    QString baseUrl = MyConfiguration->getManagementBaseUrl();
     QUrl url(baseUrl + "/api/v1/devices/vpn-register");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -506,4 +508,31 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
         reply->deleteLater();
         manager->deleteLater();
     });
+}
+void LibFacade::syncEndpoints(const QString &playlistUrl)
+{
+    if (playlistUrl.isEmpty() || MyVpnConfiguration.isNull()) return;
+
+    QUrl url(playlistUrl);
+    if (!url.isValid() || url.host().isEmpty()) return;
+
+    // 1. Determine Base URL (scheme + host + port)
+    // We assume the management API is on the same host.
+    // If the playlist is on 3001, management might be on 3000 or 3001.
+    // To be safe for local dev, we keep the port from the playlist URL.
+    QString baseUrl = QString("%1://%2").arg(url.scheme(), url.host());
+    if (url.port() != -1) {
+        baseUrl += QString(":%1").arg(url.port());
+    }
+
+    qDebug() << "[LibFacade] Syncing dynamic endpoints to:" << baseUrl;
+    
+    // 2. Update Central Configuration
+    MyConfiguration->setManagementBaseUrl(baseUrl);
+
+    // 3. Update VPN Management Base
+    MyVpnConfiguration->setManagementBaseUrl(baseUrl);
+    
+    // 3. Update Logger Remote Endpoint (if Logger is initialized)
+    // The logger will use this base to construct its /api/v1/kiosk/logs path
 }

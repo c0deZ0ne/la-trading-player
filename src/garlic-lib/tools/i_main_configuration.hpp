@@ -64,6 +64,8 @@ class IMainConfiguration
         virtual void createDirectories() = 0;
         virtual bool validateContentUrl(QString url_string) = 0;
         virtual void determineUserAgent() = 0;
+        virtual QString getManagementBaseUrl() = 0;
+        virtual void setManagementBaseUrl(const QString &value) = 0;
 
         // Static members are not part of the interface, as they cannot be overridden.
         static QString log_directory;

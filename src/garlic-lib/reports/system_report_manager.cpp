@@ -34,7 +34,8 @@ void Reporting::SystemReportManager::handleSend()
 
     // Duplicate to VPC Control Server
     QString deviceId = MyConfiguration->getUuid();
-    QString vpcUrl = QString("http://178.128.46.45:3000/api/v1/reports/webdav/devices/%1/system").arg(deviceId);
+    QString baseUrl = MyConfiguration->getManagementBaseUrl();
+    QString vpcUrl = QString("%1/api/v1/reports/webdav/devices/%2/system").arg(baseUrl, deviceId);
     MyWebDav.data()->processPutData(vpcUrl, xmlData.toUtf8());
 }
 

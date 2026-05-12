@@ -198,7 +198,10 @@ void Logger::triggerUpload()
     }
     json["logs"] = logs;
 
-    QUrl url("http://178.128.46.45:3000/api/v1/kiosk/logs");
+    // Construct URL dynamically from the current management base URL
+    QString baseUrl = m_config->getManagementBaseUrl();
+
+    QUrl url(baseUrl + "/api/v1/kiosk/logs");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 

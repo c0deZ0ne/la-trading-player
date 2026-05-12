@@ -87,7 +87,9 @@ class LibFacade : public QObject
         QString            downloadLabel() const { return m_downloadLabel; }
         QString            appVersion() const;
         void               notifyOtaProgress(qint64 received, qint64 total);
-    public slots:
+    private:
+        void               syncEndpoints(const QString &playlistUrl);
+        void               configureRebootTimer();
         void               initParser();
         void               reboot(QString task_id);
         void               applyCommand(QString task_id, QString command);

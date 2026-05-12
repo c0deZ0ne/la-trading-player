@@ -1,5 +1,6 @@
 #include "wireguard_config.h"
-#include <QDebug>
+#include "app_defaults.h"
+#include <QProcess>
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QNetworkRequest>
@@ -13,14 +14,14 @@
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
 #ifndef MANAGEMENT_URL
-#define MANAGEMENT_URL "http://178.128.46.45:3000"
+#define MANAGEMENT_URL PROD_MANAGEMENT_URL
 #endif
 static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral(MANAGEMENT_URL);
 
 // ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
 // Returned dynamically by the registration handshake and persisted in config.
 // This is only used on first boot (before registration) and after a factory reset.
-static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("178.128.46.45:51820");
+static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral(PROD_VPN_ENDPOINT);
 
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
@@ -39,7 +40,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_status(Disconnected)
     , m_errorMessage("")
     , m_enrollmentToken(DEFAULT_ENROLLMENT_TOKEN)
-    , m_managementBaseUrl(DEFAULT_MANAGEMENT_URL)
+    , m_managementBaseUrl(mainConfig ? mainConfig->getManagementBaseUrl() : DEFAULT_MANAGEMENT_URL)
     , m_isRegistered(false)
     , m_networkManager(new QNetworkAccessManager(this))
     , m_otaTimer(nullptr)

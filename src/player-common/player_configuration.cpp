@@ -1,4 +1,5 @@
 #include "player_configuration.h"
+#include "app_defaults.h"
 
 PlayerConfiguration::PlayerConfiguration(MainConfiguration *mc, QObject *parent) : QObject(parent)
 {
@@ -68,7 +69,7 @@ QString PlayerConfiguration::determineDefaultContentUrlName()
 QString PlayerConfiguration::determineDefaultContentUrl()
 {
 #ifndef MANAGEMENT_URL
-#define MANAGEMENT_URL "http://178.128.46.45:3000"
+#define MANAGEMENT_URL PROD_MANAGEMENT_URL
 #endif
     return QString("%1/api/v1/device-playlist/%2/xml/").arg(MANAGEMENT_URL).arg(MyMainConfiguration->getStaticHardwareId());
 }

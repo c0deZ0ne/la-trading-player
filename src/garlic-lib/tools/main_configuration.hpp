@@ -114,6 +114,8 @@ class MainConfiguration  : public QObject, public IMainConfiguration
         void            createDirectories() override;
         bool            validateContentUrl(QString url_string) override;
         void            determineUserAgent() override;
+        QString         getManagementBaseUrl() override;
+        void            setManagementBaseUrl(const QString &value) override;
 
 private:
         ISettings      *MySettings;
@@ -132,6 +134,7 @@ private:
         QString         log_dir = "";
         QString         app_name = "La Player";
         QString         error_text = "";
+        QString         management_base_url = "";
         bool            createDirectoryIfNotExist(QString path);
         void            determineIndexPath();
         void            determineOS();

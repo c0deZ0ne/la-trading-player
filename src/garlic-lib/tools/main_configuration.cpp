@@ -17,6 +17,7 @@
 *************************************************************************************/
 
 #include "main_configuration.hpp"
+#include "app_defaults.h"
 #include <QXmlStreamReader>
 #include <QString>
 #include <QCryptographicHash>
@@ -613,4 +614,24 @@ QJsonObject MainConfiguration::getSystemMetadata() const
 #endif
 
     return meta;
+}
+QString MainConfiguration::getManagementBaseUrl()
+{
+    if (management_base_url.isEmpty()) {
+        management_base_url = getUserConfigByKey("management_base_url");
+    }
+    
+    if (management_base_url.isEmpty()) {
+        return QStringLiteral(PROD_MANAGEMENT_URL); // Global Production Fallback
+    }
+    
+    return management_base_url;
+}
+
+void MainConfiguration::setManagementBaseUrl(const QString &value)
+{
+    if (management_base_url != value) {
+        management_base_url = value;
+        setUserConfigByKey("management_base_url", value);
+    }
 }
