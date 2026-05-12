@@ -38,6 +38,7 @@
 class MainConfiguration  : public QObject, public IMainConfiguration
 {
     Q_OBJECT
+    Q_PROPERTY(QString managementPin READ getManagementPin NOTIFY managementPinChanged)
     public:
         const     QString        OS_ANDROID  = "android";
         const     QString        OS_DARWIN   = "darwin";
@@ -116,6 +117,11 @@ class MainConfiguration  : public QObject, public IMainConfiguration
         void            determineUserAgent() override;
         QString         getManagementBaseUrl() override;
         void            setManagementBaseUrl(const QString &value) override;
+        QString         getManagementPin() override;
+        void            setManagementPin(const QString &value) override;
+
+    signals:
+        void            managementPinChanged();
 
 private:
         ISettings      *MySettings;
@@ -135,6 +141,7 @@ private:
         QString         app_name = "La Player";
         QString         error_text = "";
         QString         management_base_url = "";
+        QString         management_pin = "0000";
         bool            createDirectoryIfNotExist(QString path);
         void            determineIndexPath();
         void            determineOS();

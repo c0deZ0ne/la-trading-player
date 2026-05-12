@@ -66,9 +66,21 @@ find . -name "Makefile*" -exec touch {} +
 echo 
 echo ========== build 
 echo 
-"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS 2>&1 | tee build_log.txt
-BUILD_EXIT=${PIPESTATUS[0]}
+# NOTE: Redirect to file directly (no pipe through tee) to avoid Windows/MINGW
+# stdout pipe overflow with -j N parallel jobs. The pipe causes "write error: stdout"
+# and a false non-zero exit even when compilation succeeds.
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS > build_log.txt 2>&1
+BUILD_EXIT=$?
+
+# Always show the last 60 lines so the terminal is not silent
+echo "--- build_log.txt (last 60 lines) ---"
+tail -60 build_log.txt || cat build_log.txt
+
 if [ $BUILD_EXIT -ne 0 ]; then
+    # Show any error lines to help diagnose real failures
+    echo ""
+    echo "=== Compiler errors ==="
+    grep -i "error:" build_log.txt || true
     echo "ERROR: make failed with exit code $BUILD_EXIT. Check build_log.txt for details."
     exit $BUILD_EXIT
 fi

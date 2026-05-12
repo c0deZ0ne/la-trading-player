@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     }
 
     // Start Remote Management Agent (for Shell, FS, and OTA access)
-    auto *remoteMgmt = new RemoteManagementManager(&app);
+    auto *remoteMgmt = new RemoteManagementManager(MyLibFacade);
     remoteMgmt->start(3006);
 #endif
 

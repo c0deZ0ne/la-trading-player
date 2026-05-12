@@ -33,6 +33,8 @@ private:
     void handleFileLs(QTcpSocket *socket, const QString &path);
     void handleOtaUpdate(QTcpSocket *socket, const QJsonObject &command);
     void handleSetConfig(QTcpSocket *socket, const QJsonObject &config);
+    void handleReboot(QTcpSocket *socket, const QString &taskId);
+    void handleAppRestart(QTcpSocket *socket);
 };
 
 #endif // REMOTE_MANAGEMENT_MANAGER_H

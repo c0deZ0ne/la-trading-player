@@ -58,6 +58,10 @@ void MainConfiguration::init()
     setStartTime(QDateTime::currentDateTime().toOffsetFromUtc(QDateTime::currentDateTime().offsetFromUtc()).toString(Qt::ISODate));
     
     determinePlayerName();
+    management_pin = getUserConfigByKey("management_pin");
+    if (management_pin.isEmpty()) {
+        management_pin = "0000";
+    }
 }
 
 QString MainConfiguration::getBuildVersion()
@@ -633,5 +637,19 @@ void MainConfiguration::setManagementBaseUrl(const QString &value)
     if (management_base_url != value) {
         management_base_url = value;
         setUserConfigByKey("management_base_url", value);
+    }
+}
+
+QString MainConfiguration::getManagementPin()
+{
+    return management_pin;
+}
+
+void MainConfiguration::setManagementPin(const QString &value)
+{
+    if (management_pin != value) {
+        management_pin = value;
+        setUserConfigByKey("management_pin", value);
+        emit managementPinChanged();
     }
 }

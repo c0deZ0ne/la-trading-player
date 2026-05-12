@@ -37,6 +37,7 @@
 #include "vpn/wireguard_config.h"
 
 class FreeDiscSpace;
+class MainConfiguration;
 
 /**
  * @brief The LibFacade class is the interface for a player component to the garlic parser
@@ -59,6 +60,7 @@ class LibFacade : public QObject
         Q_PROPERTY(double downloadProgress READ downloadProgress NOTIFY downloadStatusChanged)
         Q_PROPERTY(QString downloadLabel READ downloadLabel NOTIFY downloadStatusChanged)
         Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+        Q_PROPERTY(QString managementPin READ managementPin NOTIFY managementPinChanged)
     public:
         explicit LibFacade(QObject *parent = nullptr);
         ~LibFacade();
@@ -80,6 +82,11 @@ class LibFacade : public QObject
         void               shutDownParsing();
         void               initParserWithTemporaryFile(QString uri);
         Q_INVOKABLE void   enrollDevice(QString token, QString playlistUrl);
+        void               initParser();
+        void               reboot(QString task_id);
+        void               applyCommand(QString task_id, QString command);
+        void               takeScreenshot(QString file_path);
+        void               forceSystemReport();
         
         // Progress Reporting
         bool               isDownloading() const { return m_isDownloading; }
@@ -87,14 +94,10 @@ class LibFacade : public QObject
         QString            downloadLabel() const { return m_downloadLabel; }
         QString            appVersion() const;
         void               notifyOtaProgress(qint64 received, qint64 total);
+        QString            managementPin() const;
     private:
         void               syncEndpoints(const QString &playlistUrl);
         void               configureRebootTimer();
-        void               initParser();
-        void               reboot(QString task_id);
-        void               applyCommand(QString task_id, QString command);
-        void               takeScreenshot(QString file_path);
-        void               forceSystemReport();
     protected:
         int               resource_monitor_timer_id;
         bool              has_launcher = false;
@@ -143,7 +146,6 @@ class LibFacade : public QObject
         QString           m_downloadLabel = "";
         qint64            m_otaReceived = 0;
         qint64            m_otaTotal = 0;
-        void              configureRebootTimer();
     signals:
         void               startShowMedia(BaseMedia *media);
         void               stopShowMedia(BaseMedia *media);
@@ -157,6 +159,7 @@ class LibFacade : public QObject
         void               rebootOS(QString task_id);
         void               installSoftware(QString file_path);
         void               downloadStatusChanged();
+        void               managementPinChanged();
 };
 
 #endif // LIB_FACADE_H

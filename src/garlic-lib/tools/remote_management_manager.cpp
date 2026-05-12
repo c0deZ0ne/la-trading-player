@@ -72,6 +72,10 @@ void RemoteManagementManager::handleCommand(QTcpSocket *socket, const QJsonObjec
         handleOtaUpdate(socket, command);
     } else if (type == "SET_CONFIG") {
         handleSetConfig(socket, command["config"].toObject());
+    } else if (type == "REBOOT") {
+        handleReboot(socket, command["task_id"].toString());
+    } else if (type == "APP_RESTART") {
+        handleAppRestart(socket);
     } else {
         resp["error"] = "Unknown command type";
         sendResponse(socket, resp);
@@ -134,6 +138,15 @@ void RemoteManagementManager::handleSetConfig(QTcpSocket *socket, const QJsonObj
         LibFacade *facade = qobject_cast<LibFacade*>(parent());
         if (facade) {
             facade->reloadWithNewIndex(newUrl);
+            changed = true;
+        }
+    }
+
+    if (config.contains("managementPin")) {
+        QString newPin = config["managementPin"].toString();
+        LibFacade *facade = qobject_cast<LibFacade*>(parent());
+        if (facade && facade->getConfiguration()) {
+            facade->getConfiguration()->setManagementPin(newPin);
             changed = true;
         }
     }
@@ -201,6 +214,51 @@ void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObj
     #else
     resp["status"] = "ERROR";
     resp["message"] = "OTA push only supported on Android";
+    sendResponse(socket, resp);
+    #endif
+}
+
+void RemoteManagementManager::handleReboot(QTcpSocket *socket, const QString &taskId)
+{
+    qInfo() << "[RemoteMgmt] Reboot command received. taskId:" << taskId;
+    
+    QJsonObject resp;
+    LibFacade *facade = qobject_cast<LibFacade*>(parent());
+    if (facade) {
+        resp["status"] = "OK";
+        resp["message"] = "Reboot sequence initiated";
+        sendResponse(socket, resp);
+        
+        // Trigger the privileged reboot
+        facade->reboot(taskId);
+    } else {
+        resp["status"] = "ERROR";
+        resp["message"] = "LibFacade not found";
+        sendResponse(socket, resp);
+    }
+}
+
+void RemoteManagementManager::handleAppRestart(QTcpSocket *socket)
+{
+    qInfo() << "[RemoteMgmt] App Restart command received.";
+    
+    QJsonObject resp;
+    #if defined Q_OS_ANDROID
+    QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(ANDROID_ACTIVITY_PATH, "getInstance", QString("()L" + QString(ANDROID_ACTIVITY_PATH) + ";").toLocal8Bit().data());
+    if (MyActivity.isValid()) {
+        resp["status"] = "OK";
+        resp["message"] = "App restart sequence initiated";
+        sendResponse(socket, resp);
+        
+        MyActivity.callMethod<void>("restartApp");
+    } else {
+        resp["status"] = "ERROR";
+        resp["message"] = "GarlicActivity instance not found";
+        sendResponse(socket, resp);
+    }
+    #else
+    resp["status"] = "ERROR";
+    resp["message"] = "App restart only supported on Android";
     sendResponse(socket, resp);
     #endif
 }

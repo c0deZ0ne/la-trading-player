@@ -126,8 +126,26 @@ Item
         anchors.left: parent.left
         z: 20000
         onTriggered: {
-            console.warn("[Gesture] Menu Authorized")
-            floatingSettingsMenu.expanded = true
+            console.warn("[Gesture] Security Challenge Initiated")
+            pinPadLoader.source = "qrc:/SettingsPinPad.qml"
+        }
+    }
+
+    Loader {
+        id: pinPadLoader
+        anchors.fill: parent
+        z: 50000
+        onLoaded: {
+            if (item) {
+                item.success.connect(function() {
+                    console.log("[Security] Access Granted")
+                    pinPadLoader.source = ""
+                    floatingSettingsMenu.expanded = true
+                })
+                item.cancel.connect(function() {
+                    pinPadLoader.source = ""
+                })
+            }
         }
     }
 

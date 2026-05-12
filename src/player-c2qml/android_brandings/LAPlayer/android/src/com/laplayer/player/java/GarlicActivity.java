@@ -74,6 +74,26 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         return m_instance;
     }
 
+    public void restartApp() {
+        Log.i("GarlicActivity", "App restart requested via Launch Intent...");
+        
+        try {
+            Intent intent = getBaseContext().getPackageManager()
+                    .getLaunchIntentForPackage(getBaseContext().getPackageName());
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+            }
+        } catch (Exception e) {
+            Log.e("GarlicActivity", "Failed to start relaunch intent: " + e.getMessage());
+        }
+
+        // Kill the process. If in Kiosk mode, the OS will also help relaunch.
+        // If not, the startActivity above handles it.
+        android.os.Process.killProcess(android.os.Process.myPid());
+        System.exit(0);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         m_instance = this;

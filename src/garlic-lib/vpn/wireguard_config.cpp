@@ -370,6 +370,9 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
     m_tenantId     = dataObj.value("tenantId").toString();
+    if (dataObj.contains("managementPin")) {
+        m_mainConfig->setManagementPin(dataObj.value("managementPin").toString("0000"));
+    }
     m_isRegistered = true;
     save();
 
@@ -445,6 +448,13 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
         emit requestOtaDownload(downloadUrl, sha256, versionCode);
     } else {
         qDebug() << "[Wireguard][OTA] Device is up to date.";
+    }
+
+    if (dataObj.contains("managementPin")) {
+        QString pin = dataObj.value("managementPin").toString();
+        if (!pin.isEmpty() && m_mainConfig) {
+            m_mainConfig->setManagementPin(pin);
+        }
     }
 }
 

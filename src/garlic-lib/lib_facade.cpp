@@ -63,6 +63,7 @@ void LibFacade::init(MainConfiguration *config)
 {    
     GlobalLibfacede = this;
     MyConfiguration.reset(config);
+    connect(MyConfiguration.data(), SIGNAL(managementPinChanged()), this, SIGNAL(managementPinChanged()));
     MyInventoryTable.reset(new DB::InventoryTable(this));
     MyInventoryTable.data()->init(MyConfiguration.data()->getPaths("logs"));
     MyFreeDiscSpace.data()->init(MyConfiguration.data()->getPaths("cache"));
@@ -478,6 +479,9 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
             // 1. Save Provisioned Config
             MyConfiguration->setPlayerName(obj.value("deviceName").toString(MyConfiguration->getPlayerName()));
             MyConfiguration->setIndexUri(playlistUrl); // Save the provided URL
+            if (obj.contains("managementPin")) {
+                MyConfiguration->setManagementPin(obj.value("managementPin").toString("0000"));
+            }
             
             // 2. Setup VPN if returned
             if (!MyVpnConfiguration.isNull()) {
@@ -535,4 +539,10 @@ void LibFacade::syncEndpoints(const QString &playlistUrl)
     
     // 3. Update Logger Remote Endpoint (if Logger is initialized)
     // The logger will use this base to construct its /api/v1/kiosk/logs path
+}
+
+QString LibFacade::managementPin() const
+{
+    if (MyConfiguration.isNull()) return "0000";
+    return MyConfiguration->getManagementPin();
 }
