@@ -10,7 +10,7 @@
 
 namespace AppDefaults {
     // Production Server Identity
-    #define PROD_SERVER_IP "192.168.0.5"
+    #define PROD_SERVER_HOST "api.la-trading-cms.co.uk"
     
     // Default Ports
     #define PROD_MANAGEMENT_PORT "3000"
@@ -18,8 +18,8 @@ namespace AppDefaults {
     #define PROD_VPN_PORT "51820"
 
     // Default URLs and Endpoints
-    #define PROD_MANAGEMENT_URL "http://" PROD_SERVER_IP ":" PROD_MANAGEMENT_PORT
-    #define PROD_VPN_ENDPOINT    PROD_SERVER_IP ":" PROD_VPN_PORT
+    #define PROD_MANAGEMENT_URL "https://" PROD_SERVER_HOST
+    #define PROD_VPN_ENDPOINT    PROD_SERVER_HOST ":" PROD_VPN_PORT
 }
 
 #endif // APP_DEFAULTS_H

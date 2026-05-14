@@ -49,6 +49,7 @@ void MainConfiguration::init()
         setUuid(getStaticHardwareId());
     }
     player_name = getUserConfigByKey("player_name");
+    index_uri   = getUserConfigByKey("index_uri");
     time_zone   = QTimeZone::systemTimeZoneId();
 
     determineOS();
