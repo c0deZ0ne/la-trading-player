@@ -19,8 +19,8 @@ if [ -z "$VERSION_CODE" ]; then
 fi
 
 BRANDING="LAPlayer"
-VPC_IP="192.168.0.5"
-export MANAGEMENT_URL="http://$VPC_IP:3001" #managed server endpoint
+VPC_HOST="api.la-trading-cms.co.uk"
+export MANAGEMENT_URL="https://$VPC_HOST" #managed server endpoint
 
 echo "===================================================="
 echo "    🚀 ONE-CLICK OTA DEPLOYMENT (Version: $VERSION_CODE)    "
