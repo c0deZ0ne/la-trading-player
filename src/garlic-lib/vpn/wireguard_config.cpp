@@ -35,7 +35,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_serverPublicKey("")  // Fetched dynamically via handshake
     , m_serverEndpoint(DEFAULT_VPN_ENDPOINT)
     , m_virtualIp("")
-    , m_allowedIps("0.0.0.0/0")
+    , m_allowedIps("100.64.0.0/10")
     , m_isEnabled(false)
     , m_status(Disconnected)
     , m_errorMessage("")
@@ -65,7 +65,7 @@ void WireguardConfig::load()
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
-    if (m_allowedIps.isEmpty()) m_allowedIps = "0.0.0.0/0";
+    if (m_allowedIps.isEmpty()) m_allowedIps = "100.64.0.0/10";
 
     m_isEnabled    = (m_mainConfig->getUserConfigByKey("vpn_enabled") == "true");
     m_isRegistered = (m_mainConfig->getUserConfigByKey("vpn_registered") == "true");
@@ -353,10 +353,11 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
         dataObj = dataObj.value("data").toObject();
     }
 
-    // Response fields match DeviceRegistrationResponseDto: clientIp, serverPublicKey, serverEndpoint
+    // Response fields match DeviceRegistrationResponseDto: clientIp, serverPublicKey, serverEndpoint, allowedIps
     QString clientIp   = dataObj.value("clientIp").toString();
     QString serverKey  = dataObj.value("serverPublicKey").toString();
     QString endpoint   = dataObj.value("serverEndpoint").toString();
+    QString allowedIps = dataObj.value("allowedIps").toString("100.64.0.0/10");
 
     if (clientIp.isEmpty()) {
         setVpnError("Registration failed: server returned no virtual IP.");
@@ -364,11 +365,13 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     }
 
     qInfo() << "[Wireguard] Registration succeeded. VirtualIP:" << clientIp
-            << "ServerKey:" << serverKey;
+            << "ServerKey:" << serverKey
+            << "AllowedIps:" << allowedIps;
 
     if (!serverKey.isEmpty()) m_serverPublicKey = serverKey;
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
+    m_allowedIps   = allowedIps; // e.g. "100.64.0.0/10" from server
     m_tenantId     = dataObj.value("tenantId").toString();
     if (dataObj.contains("managementPin")) {
         m_mainConfig->setManagementPin(dataObj.value("managementPin").toString("0000"));
@@ -379,6 +382,7 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     emit serverPublicKeyChanged();
     emit serverEndpointChanged();
     emit virtualIpChanged();
+    emit allowedIpsChanged();
     setErrorMessage("Identity confirmed. Establishing tunnel...");
 
     // Now that we have a valid config, initiate the actual VPN tunnel
