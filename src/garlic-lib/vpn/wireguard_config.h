@@ -22,6 +22,7 @@ class WireguardConfig : public QObject
     Q_PROPERTY(QString errorMessage READ getErrorMessage WRITE setErrorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(QString playerName READ getPlayerName NOTIFY playerNameChanged)
     Q_PROPERTY(QString enrollmentToken READ getEnrollmentToken WRITE setEnrollmentToken NOTIFY enrollmentTokenChanged)
+    Q_PROPERTY(QString managementBaseUrl READ getManagementBaseUrl WRITE setManagementBaseUrl NOTIFY managementBaseUrlChanged)
 
 public:
     // VPN Status codes
@@ -80,8 +81,8 @@ public:
     QString getPlayerName() const;
 
     // Management API base URL (host of the NestJS backend, not the VPN port)
-    void setManagementBaseUrl(const QString &url);
-    QString getManagementBaseUrl() const;
+    Q_INVOKABLE void setManagementBaseUrl(const QString &url);
+    Q_INVOKABLE QString getManagementBaseUrl() const;
 
 public slots:
     void generateIdentity();
@@ -109,6 +110,7 @@ signals:
     void errorMessageChanged();
     void playerNameChanged();
     void enrollmentTokenChanged();
+    void managementBaseUrlChanged();
 
     // Requests to the main application (AndroidManager)
     void requestKeyGeneration();

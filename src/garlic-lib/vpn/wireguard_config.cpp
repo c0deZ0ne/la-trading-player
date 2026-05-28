@@ -12,12 +12,12 @@
 
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
-static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("http://178.128.46.45:3000");
+static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("https://api-dev.la-trading-cms.co.uk");
 
 // ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
 // Returned dynamically by the registration handshake and persisted in config.
 // This is only used on first boot (before registration) and after a factory reset.
-static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("178.128.46.45:51820");
+static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("api-dev.la-trading-cms.co.uk:51820");
 
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
@@ -58,6 +58,9 @@ void WireguardConfig::load()
 
     m_serverEndpoint = m_mainConfig->getUserConfigByKey("vpn_server_endpoint");
     if (m_serverEndpoint.isEmpty()) m_serverEndpoint = DEFAULT_VPN_ENDPOINT;
+
+    QString savedBase = m_mainConfig->getUserConfigByKey("management_base_url");
+    if (!savedBase.isEmpty()) m_managementBaseUrl = savedBase;
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
@@ -112,6 +115,7 @@ void WireguardConfig::save()
     m_mainConfig->setUserConfigByKey("vpn_registered",     m_isRegistered ? "true" : "false");
     m_mainConfig->setUserConfigByKey("vpn_tenant_id",      m_tenantId);
     m_mainConfig->setUserConfigByKey("vpn_enrollment_token", m_enrollmentToken); // persist any runtime changes
+    m_mainConfig->setUserConfigByKey("management_base_url", m_managementBaseUrl);
 }
 
 // ─── Getters / Setters ────────────────────────────────────────────────────────
@@ -211,7 +215,11 @@ QString WireguardConfig::getPlayerName() const
 
 void WireguardConfig::setManagementBaseUrl(const QString &url)
 {
-    m_managementBaseUrl = url;
+    if (m_managementBaseUrl != url) {
+        m_managementBaseUrl = url;
+        emit managementBaseUrlChanged();
+        save();
+    }
 }
 
 QString WireguardConfig::getManagementBaseUrl() const
@@ -389,10 +397,10 @@ void WireguardConfig::checkOtaUpdate()
     QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-check");
     QUrlQuery query;
     query.addQueryItem("versionCode", QString::number(currentVersion));
-    // Send deviceId as a query param (matches OtaCheckDto schema)
-    // Also sent as x-device-id header below for backwards compatibility
-    if (!getPlayerName().isEmpty()) {
-        query.addQueryItem("deviceId", getPlayerName());
+    // deviceId must be the UUID used during registration — backend looks up by this column
+    QString uuid = m_mainConfig ? m_mainConfig->getUuid() : "";
+    if (!uuid.isEmpty()) {
+        query.addQueryItem("deviceId", uuid);
     }
     if (!m_tenantId.isEmpty()) {
         query.addQueryItem("tenantId", m_tenantId);
@@ -400,7 +408,7 @@ void WireguardConfig::checkOtaUpdate()
     url.setQuery(query);
 
     QNetworkRequest request(url);
-    request.setRawHeader("x-device-id", getPlayerName().toUtf8());
+    request.setRawHeader("x-device-id", uuid.toUtf8());
     request.setRawHeader("x-enrollment-token", m_enrollmentToken.toUtf8());
     QNetworkReply *reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -450,15 +458,26 @@ void WireguardConfig::reportOtaStatus(bool success, const QString &status, const
             << "success=" << success
             << (message.isEmpty() ? "" : " msg=" + message);
 
+    // Map Java-side granular failure states to the backend OtaStatus enum values.
+    // Backend accepts: pending | in_progress | success | failed | idle
+    QString backendStatus = status;
+    if (status == "download_failed" || status == "sha_mismatch" || status == "install_failed") {
+        backendStatus = "failed";
+    }
+
+    QString uuid = m_mainConfig ? m_mainConfig->getUuid() : getPlayerName();
+
     QJsonObject payload;
-    payload["deviceId"] = getPlayerName();
-    payload["status"]   = status;
+    payload["deviceId"] = uuid;
+    payload["status"]   = backendStatus;
     // Always include the pending version code so the backend can update
     // currentVersionCode immediately on success without waiting for the next poll.
     if (m_pendingOtaVersionCode > 0)
         payload["versionCode"] = m_pendingOtaVersionCode;
     if (!message.isEmpty())
         payload["errorMessage"] = message;
+    else if (backendStatus == "failed" && status != "failed")
+        payload["errorMessage"] = status; // e.g. "sha_mismatch" as the failure detail
     // Clear pending code on terminal states (success or any hard failure)
     if (success || status == "sha_mismatch" || status == "install_failed" || status == "download_failed")
         m_pendingOtaVersionCode = 0;
@@ -466,7 +485,7 @@ void WireguardConfig::reportOtaStatus(bool success, const QString &status, const
     QUrl url(m_managementBaseUrl + "/api/v1/devices/ota-status");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("x-device-id",        getPlayerName().toUtf8());
+    request.setRawHeader("x-device-id",        uuid.toUtf8());
     request.setRawHeader("x-enrollment-token", m_enrollmentToken.toUtf8());
 
     // Fire-and-forget POST — we do not block waiting for a response

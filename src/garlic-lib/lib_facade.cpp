@@ -436,7 +436,7 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     // Use the same management base URL as the VPN config — single source of truth.
     // Do NOT hardcode the server IP here; always derive it from MyVpnConfiguration.
     QString baseUrl = MyVpnConfiguration.isNull()
-                          ? QStringLiteral("http://178.128.46.45:3000")   // safe fallback only
+                          ? QStringLiteral("https://api-dev.la-trading-cms.co.uk")
                           : MyVpnConfiguration->getManagementBaseUrl();
     QUrl url(baseUrl + "/api/v1/devices/vpn-register");
     QNetworkRequest request(url);
@@ -475,7 +475,9 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
             
             // 1. Save Provisioned Config
             MyConfiguration->setPlayerName(obj.value("deviceName").toString(MyConfiguration->getPlayerName()));
-            MyConfiguration->setIndexUri(playlistUrl); // Save the provided URL
+            // Prefer the server-assigned playlist URL; fall back to what the user typed
+            QString serverPlaylistUrl = obj.value("playlistUrl").toString();
+            MyConfiguration->setIndexUri(!serverPlaylistUrl.isEmpty() ? serverPlaylistUrl : playlistUrl);
             
             // 2. Setup VPN if returned
             if (!MyVpnConfiguration.isNull()) {

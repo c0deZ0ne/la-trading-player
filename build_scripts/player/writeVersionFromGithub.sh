@@ -9,25 +9,25 @@ if [ -z "$BUILD_NUMBER" ]; then
 else
 	export GIT_DIR=$WORKSPACE/
 fi
+VERSION_NAME=`git --git-dir="$GIT_DIR/.git" describe --tags $(git --git-dir="$GIT_DIR/.git" rev-list --tags --max-count=1) 2>/dev/null || echo "v1.0"`
+BASE_VERSION=$(echo $VERSION_NAME | sed -E 's/\.[0-9]+$//')
+
 # Use FORCE_VERSION_CODE if provided, otherwise count git commits
 if [ ! -z "$FORCE_VERSION_CODE" ]; then
     COMMIT_NUMBER=$FORCE_VERSION_CODE
     echo "Forcing version code to: $COMMIT_NUMBER"
+    # Always construct from tag base + forced code — never reuse the existing tag as-is,
+    # because a suffix match like "1013" ending in "3" would silently swallow the forced value.
+    export GARLIC_VERSION="$BASE_VERSION.$COMMIT_NUMBER"
 else
     COMMIT_NUMBER=`git --git-dir="$GIT_DIR/.git" rev-list --all --count`
-fi
-
-VERSION_NAME=`git --git-dir="$GIT_DIR/.git" describe --tags $(git --git-dir="$GIT_DIR/.git" rev-list --tags --max-count=1) 2>/dev/null || echo "v1.0"`
-
-# If the version name already ends with the commit number, don't append it again
-if [[ "$VERSION_NAME" == *"$COMMIT_NUMBER" ]]; then
-    export GARLIC_VERSION=$VERSION_NAME
-elif [[ "$VERSION_NAME" == *"v$COMMIT_NUMBER" ]]; then
-    export GARLIC_VERSION=$VERSION_NAME
-else
-    # Remove any existing commit-like suffix and append the current one
-    BASE_VERSION=$(echo $VERSION_NAME | sed -E 's/\.[0-9]+$//')
-    export GARLIC_VERSION="$BASE_VERSION.$COMMIT_NUMBER"
+    # If the tag's last component already equals the commit count, use the tag as-is
+    TAG_LAST=$(echo $VERSION_NAME | awk -F. '{print $NF}')
+    if [[ "$TAG_LAST" == "$COMMIT_NUMBER" ]]; then
+        export GARLIC_VERSION=$VERSION_NAME
+    else
+        export GARLIC_VERSION="$BASE_VERSION.$COMMIT_NUMBER"
+    fi
 fi
 
 echo 

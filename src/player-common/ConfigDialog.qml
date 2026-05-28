@@ -147,7 +147,7 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                     }
                     
-                    background: Item {}
+                    background: Rectangle { color: "transparent" }
                     onClicked: root.rejected()
                 }
 
@@ -417,6 +417,7 @@ Rectangle {
                         anchors.fill: parent
                         running: root.isConnecting
                         visible: root.isConnecting
+                        palette.dark: "white"
                     }
 
                     Text {

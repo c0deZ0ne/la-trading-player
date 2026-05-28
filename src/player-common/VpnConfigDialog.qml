@@ -121,7 +121,7 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment:   Text.AlignVCenter
                 }
-                background: Item {}
+                background: Rectangle { color: "transparent" }
                 onClicked: vpnRoot.cancel()
             }
 
@@ -140,6 +140,9 @@ Rectangle {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                       leftMargin: 20; rightMargin: 20; bottomMargin: 20 }
             radius: 8
+            color: "#1a1a1a"
+            border.color: "#333333"
+            border.width: 1
 
             RowLayout {
                 anchors { fill: parent; margins: 14 }
@@ -150,10 +153,12 @@ Rectangle {
                     visible: running
                     Layout.preferredWidth: 24
                     Layout.preferredHeight: 24
+                    palette.dark: "white"
                 }
 
                 Text {
                     id: statusText
+                    color: "white"
                     font { pixelSize: 12; weight: Font.Bold }
                     Layout.fillWidth: true
                     wrapMode: Text.NoWrap
@@ -175,6 +180,7 @@ Rectangle {
             clip: true
             contentWidth: availableWidth
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            background: Rectangle { color: "transparent" }
 
             Item {
                 width: contentScroll.availableWidth
@@ -240,6 +246,7 @@ Rectangle {
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment:   Text.AlignVCenter
                                         }
+                                        background: Rectangle { color: "transparent" }
                                         onClicked: if (vpnRoot.backendConfig)
                                             vpnRoot.backendConfig.copyToClipboard(vpnRoot.backendConfig.publicKey)
                                     }
@@ -397,6 +404,7 @@ Rectangle {
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment:   Text.AlignVCenter
                             }
+                            background: Rectangle { color: "transparent"; radius: 8; border.color: "#ff4444"; border.width: 1 }
                             onClicked: if (vpnRoot.backendConfig) vpnRoot.backendConfig.resetRegistration()
                         }
 
@@ -452,6 +460,7 @@ Rectangle {
                         anchors.fill: parent
                         running: vpnRoot.state === "REGISTERING" || vpnRoot.state === "CONNECTING"
                         visible: running
+                        palette.dark: "white"
                     }
                 }
 
