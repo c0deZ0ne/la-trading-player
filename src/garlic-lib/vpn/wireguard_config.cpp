@@ -374,6 +374,9 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
     m_tenantId     = dataObj.value("tenantId").toString();
+    if (dataObj.contains("managementPin") && m_mainConfig) {
+        m_mainConfig->setManagementPin(dataObj.value("managementPin").toString("0000"));
+    }
     m_isRegistered = true;
     save();
 
@@ -434,6 +437,17 @@ void WireguardConfig::handleOtaResponse(QNetworkReply *reply)
     // Support both direct and enveloped responses for robustness
     while (dataObj.contains("data") && dataObj.value("data").isObject()) {
         dataObj = dataObj.value("data").toObject();
+    }
+
+    // Backend includes managementPin on every poll — apply it if changed.
+    // This is the offline-sync path: if the PATCH /management-pin TCP push failed,
+    // the device will self-heal on the next OTA poll (every 15 min).
+    if (dataObj.contains("managementPin") && m_mainConfig) {
+        QString polledPin = dataObj.value("managementPin").toString();
+        if (!polledPin.isEmpty() && polledPin != m_mainConfig->getManagementPin()) {
+            qInfo() << "[Wireguard][OTA] Syncing updated management PIN from server.";
+            m_mainConfig->setManagementPin(polledPin);
+        }
     }
 
     if (dataObj.value("updateAvailable").toBool()) {
@@ -509,8 +523,7 @@ void WireguardConfig::resetRegistration()
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
         QJsonObject payload;
-        // Use getPlayerName() (hardware deviceId) — NOT getUuid() (app-install UUID)
-        payload["deviceId"] = getPlayerName();
+        payload["deviceId"] = m_mainConfig ? m_mainConfig->getUuid() : getPlayerName();
         payload["tenantId"] = m_tenantId;
 
         m_networkManager->post(request, QJsonDocument(payload).toJson());

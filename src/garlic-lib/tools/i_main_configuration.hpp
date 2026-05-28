@@ -65,6 +65,9 @@ class IMainConfiguration
         virtual bool validateContentUrl(QString url_string) = 0;
         virtual void determineUserAgent() = 0;
 
+        virtual QString getManagementPin() = 0;
+        virtual void setManagementPin(const QString &value) = 0;
+
         // Static members are not part of the interface, as they cannot be overridden.
         static QString log_directory;
         static QString getLogDir();

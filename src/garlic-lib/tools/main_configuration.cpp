@@ -50,6 +50,11 @@ void MainConfiguration::init()
     player_name = getUserConfigByKey("player_name");
     time_zone   = QTimeZone::systemTimeZoneId();
 
+    QString savedPin = getUserConfigByKey("management_pin");
+    if (!savedPin.isEmpty()) {
+        management_pin = savedPin;
+    }
+
     determineOS();
 
     // ugly workaround from https://stackoverflow.com/questions/21976264/qt-isodate-formatted-date-time-including-timezone
@@ -556,6 +561,19 @@ bool MainConfiguration::createDirectoryIfNotExist(QString path)
         return false;
     }
     return true;
+}
+
+QString MainConfiguration::getManagementPin()
+{
+    return management_pin;
+}
+
+void MainConfiguration::setManagementPin(const QString &value)
+{
+    if (management_pin == value) return;
+    management_pin = value;
+    setUserConfigByKey("management_pin", value);
+    emit managementPinChanged();
 }
 
 void MainConfiguration::determineOS()

@@ -53,7 +53,8 @@ Item
                     anchors.fill: parent
                     onClicked: {
                         floatingSettingsMenu.expanded = false;
-                        MainApp.openConfigDialog();
+                        settingsPinPad.pendingAction = function() { MainApp.openConfigDialog(); }
+                        settingsPinPad.active = true;
                     }
                 }
             }
@@ -68,7 +69,8 @@ Item
                     anchors.fill: parent
                     onClicked: {
                         floatingSettingsMenu.expanded = false;
-                        MainApp.openNetworkSettings();
+                        settingsPinPad.pendingAction = function() { MainApp.openNetworkSettings(); }
+                        settingsPinPad.active = true;
                     }
                 }
             }
@@ -82,7 +84,8 @@ Item
                     anchors.fill: parent
                     onClicked: {
                         floatingSettingsMenu.expanded = false;
-                        vpnLoader.source = "qrc:/VpnConfigDialog.qml";
+                        settingsPinPad.pendingAction = function() { vpnLoader.source = "qrc:/VpnConfigDialog.qml"; }
+                        settingsPinPad.active = true;
                     }
                 }
             }
@@ -131,12 +134,28 @@ Item
         }
     }
 
+    // PIN gate — shown before any settings dialog opens
+    SettingsPinPad {
+        id: settingsPinPad
+        z: 25000
+        property var pendingAction: null
+        onSuccess: {
+            if (pendingAction) pendingAction()
+            pendingAction = null
+            active = false
+        }
+        onCancel: {
+            pendingAction = null
+            active = false
+        }
+    }
+
     Loader {
         id: vpnLoader
         anchors.fill: parent
         z: 10000
         focus: true
-        
+
         onLoaded: {
             if (item) {
                 item.cancel.connect(function() { vpnLoader.source = "" })

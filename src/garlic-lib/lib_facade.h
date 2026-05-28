@@ -59,6 +59,7 @@ class LibFacade : public QObject
         Q_PROPERTY(double downloadProgress READ downloadProgress NOTIFY downloadStatusChanged)
         Q_PROPERTY(QString downloadLabel READ downloadLabel NOTIFY downloadStatusChanged)
         Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+        Q_PROPERTY(QString managementPin READ managementPin NOTIFY managementPinChanged)
     public:
         explicit LibFacade(QObject *parent = nullptr);
         ~LibFacade();
@@ -87,6 +88,7 @@ class LibFacade : public QObject
         QString            downloadLabel() const { return m_downloadLabel; }
         QString            appVersion() const;
         void               notifyOtaProgress(qint64 received, qint64 total);
+        QString            managementPin() const;
     public slots:
         void               initParser();
         void               reboot(QString task_id);
@@ -155,6 +157,7 @@ class LibFacade : public QObject
         void               rebootOS(QString task_id);
         void               installSoftware(QString file_path);
         void               downloadStatusChanged();
+        void               managementPinChanged();
 };
 
 #endif // LIB_FACADE_H

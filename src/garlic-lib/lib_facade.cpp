@@ -85,6 +85,8 @@ void LibFacade::init(MainConfiguration *config)
     
     MyVpnConfiguration.reset(new WireguardConfig(MyConfiguration.data(), this));
     MyVpnConfiguration.data()->load();
+
+    connect(MyConfiguration.data(), SIGNAL(managementPinChanged()), this, SIGNAL(managementPinChanged()));
 }
 
 ResourceMonitor *LibFacade::getResourceMonitor()
@@ -100,6 +102,12 @@ QString LibFacade::appVersion() const
         return QString("%1 (%2)").arg(version).arg(buildCode);
     }
     return version;
+}
+
+QString LibFacade::managementPin() const
+{
+    if (MyConfiguration.isNull()) return "0000";
+    return MyConfiguration->getManagementPin();
 }
 
 void LibFacade::saveVpnConfig()
@@ -479,6 +487,11 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
             QString serverPlaylistUrl = obj.value("playlistUrl").toString();
             MyConfiguration->setIndexUri(!serverPlaylistUrl.isEmpty() ? serverPlaylistUrl : playlistUrl);
             
+            // Save management PIN if server sent one
+            if (obj.contains("managementPin")) {
+                MyConfiguration->setManagementPin(obj.value("managementPin").toString("0000"));
+            }
+
             // 2. Setup VPN if returned
             if (!MyVpnConfiguration.isNull()) {
                 MyVpnConfiguration->setEnrollmentToken(token);

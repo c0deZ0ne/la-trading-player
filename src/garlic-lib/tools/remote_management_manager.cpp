@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTimer>
+#include <QCoreApplication>
 #include "lib_facade.h"
 #ifdef Q_OS_ANDROID
 #include <QtAndroid>
@@ -72,6 +74,10 @@ void RemoteManagementManager::handleCommand(QTcpSocket *socket, const QJsonObjec
         handleOtaUpdate(socket, command);
     } else if (type == "SET_CONFIG") {
         handleSetConfig(socket, command["config"].toObject());
+    } else if (type == "REBOOT") {
+        handleReboot(socket);
+    } else if (type == "RESTART_APP" || type == "APP_RESTART") {
+        handleRestartApp(socket);
     } else {
         resp["error"] = "Unknown command type";
         sendResponse(socket, resp);
@@ -129,11 +135,17 @@ void RemoteManagementManager::handleSetConfig(QTcpSocket *socket, const QJsonObj
     qDebug() << "[RemoteMgmt] Setting new config:" << config;
     
     bool changed = false;
-    if (config.contains("playlistUrl")) {
-        QString newUrl = config["playlistUrl"].toString();
-        LibFacade *facade = qobject_cast<LibFacade*>(parent());
-        if (facade) {
-            facade->reloadWithNewIndex(newUrl);
+    LibFacade *facade = qobject_cast<LibFacade*>(parent());
+
+    if (config.contains("playlistUrl") && facade) {
+        facade->reloadWithNewIndex(config["playlistUrl"].toString());
+        changed = true;
+    }
+
+    if (config.contains("managementPin") && facade) {
+        QString newPin = config["managementPin"].toString();
+        if (!newPin.isEmpty() && facade->getConfiguration()) {
+            facade->getConfiguration()->setManagementPin(newPin);
             changed = true;
         }
     }
@@ -164,7 +176,8 @@ void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObj
     }
 
     // Loop Prevention: Only update if the pushed version is NEWER
-    int pushedVersion = command["versionCode"].toInt();
+    // Backend sends "version" key; support "versionCode" as alias
+    int pushedVersion = command.contains("versionCode") ? command["versionCode"].toInt() : command["version"].toInt();
     int currentVersion = GlobalLibfacede->getConfiguration()->getBuildVersion().toInt();
     
     if (pushedVersion > 0 && pushedVersion <= currentVersion) {
@@ -203,6 +216,33 @@ void RemoteManagementManager::handleOtaUpdate(QTcpSocket *socket, const QJsonObj
     resp["message"] = "OTA push only supported on Android";
     sendResponse(socket, resp);
     #endif
+}
+
+void RemoteManagementManager::handleReboot(QTcpSocket *socket)
+{
+    qInfo() << "[RemoteMgmt] REBOOT command received";
+    QJsonObject resp;
+    resp["status"] = "OK";
+    resp["message"] = "Rebooting device...";
+    sendResponse(socket, resp);
+    // Delay to allow the response to flush before the OS shuts down
+    QTimer::singleShot(600, this, []() {
+        if (GlobalLibfacede) {
+            GlobalLibfacede->reboot("remote_reboot");
+        }
+    });
+}
+
+void RemoteManagementManager::handleRestartApp(QTcpSocket *socket)
+{
+    qInfo() << "[RemoteMgmt] RESTART_APP command received";
+    QJsonObject resp;
+    resp["status"] = "OK";
+    resp["message"] = "Restarting application...";
+    sendResponse(socket, resp);
+    QTimer::singleShot(600, this, []() {
+        QCoreApplication::quit();
+    });
 }
 
 void RemoteManagementManager::onDisconnected()

@@ -5,5 +5,6 @@
         <file alias="ConfigDialog.qml">ConfigDialog.qml</file>
         <file alias="VpnConfigDialog.qml">VpnConfigDialog.qml</file>
         <file alias="HiddenTrigger.qml">HiddenTrigger.qml</file>
+        <file alias="SettingsPinPad.qml">SettingsPinPad.qml</file>
     </qresource>
 </RCC>
