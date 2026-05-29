@@ -35,7 +35,7 @@ WireguardConfig::WireguardConfig(IMainConfiguration *mainConfig, QObject *parent
     , m_serverPublicKey("")  // Fetched dynamically via handshake
     , m_serverEndpoint(DEFAULT_VPN_ENDPOINT)
     , m_virtualIp("")
-    , m_allowedIps("0.0.0.0/0")
+    , m_allowedIps("100.64.0.0/10")
     , m_isEnabled(false)
     , m_status(Disconnected)
     , m_errorMessage("")
@@ -68,7 +68,7 @@ void WireguardConfig::load()
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
-    if (m_allowedIps.isEmpty()) m_allowedIps = "0.0.0.0/0";
+    if (m_allowedIps.isEmpty()) m_allowedIps = "100.64.0.0/10";
 
     m_isEnabled    = (m_mainConfig->getUserConfigByKey("vpn_enabled") == "true");
     m_isRegistered = (m_mainConfig->getUserConfigByKey("vpn_registered") == "true");

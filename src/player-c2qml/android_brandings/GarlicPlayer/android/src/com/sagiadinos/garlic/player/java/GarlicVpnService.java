@@ -111,8 +111,8 @@ public class GarlicVpnService extends VpnService implements Tunnel {
                         throw new Exception("Endpoint is NULL/Empty");
 
                     if (allowedIps == null || allowedIps.isEmpty()) {
-                        Log.w(TAG, "No AllowedIPs provided, using 0.0.0.0/0");
-                        allowedIps = "0.0.0.0/0";
+                        Log.w(TAG, "No AllowedIPs provided, using 100.64.0.0/10");
+                        allowedIps = "100.64.0.0/10";
                     }
 
                     Interface.Builder interfaceBuilder = new Interface.Builder();
