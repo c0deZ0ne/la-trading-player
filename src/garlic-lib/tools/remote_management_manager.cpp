@@ -9,7 +9,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
-#include <QCoreApplication>
 #include "lib_facade.h"
 #ifdef Q_OS_ANDROID
 #include <QtAndroid>
@@ -235,14 +234,28 @@ void RemoteManagementManager::handleReboot(QTcpSocket *socket)
 
 void RemoteManagementManager::handleRestartApp(QTcpSocket *socket)
 {
-    qInfo() << "[RemoteMgmt] RESTART_APP command received";
+    qInfo() << "[RemoteMgmt] APP_RESTART command received.";
+
     QJsonObject resp;
-    resp["status"] = "OK";
-    resp["message"] = "Restarting application...";
+#if defined Q_OS_ANDROID
+    QAndroidJniObject MyActivity = QAndroidJniObject::callStaticObjectMethod(
+        ANDROID_ACTIVITY_PATH, "getInstance",
+        QString("()L" + QString(ANDROID_ACTIVITY_PATH) + ";").toLocal8Bit().data());
+    if (MyActivity.isValid()) {
+        resp["status"] = "OK";
+        resp["message"] = "App restart sequence initiated";
+        sendResponse(socket, resp);
+        MyActivity.callMethod<void>("restartApp");
+    } else {
+        resp["status"] = "ERROR";
+        resp["message"] = "GarlicActivity instance not found";
+        sendResponse(socket, resp);
+    }
+#else
+    resp["status"] = "ERROR";
+    resp["message"] = "App restart only supported on Android";
     sendResponse(socket, resp);
-    QTimer::singleShot(600, this, []() {
-        QCoreApplication::quit();
-    });
+#endif
 }
 
 void RemoteManagementManager::onDisconnected()

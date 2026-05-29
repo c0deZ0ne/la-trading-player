@@ -61,6 +61,9 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
     private static GarlicActivity m_instance;
     private boolean is_launcher = false;
     private static LauncherInterface MyLauncherInterface = null;
+    // Written by InstallationReceiver on success so C++ can report the real version
+    // even after the process was killed and restarted by the installer.
+    public static int s_lastOtaInstalledVersion = 0;
 
     public GarlicActivity() {
         Log.d("GarlicActivity", "Constructor called");
@@ -462,6 +465,23 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
         startActivity(intent);
     }
 
+    // Called from C++ JNI via RemoteManagementManager APP_RESTART command
+    public void restartApp() {
+        Log.i("GarlicActivity", "App restart requested via Launch Intent...");
+        try {
+            Intent intent = getBaseContext().getPackageManager()
+                    .getLaunchIntentForPackage(getBaseContext().getPackageName());
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+            }
+        } catch (Exception e) {
+            Log.e("GarlicActivity", "Failed to start relaunch intent: " + e.getMessage());
+        }
+        android.os.Process.killProcess(android.os.Process.myPid());
+        System.exit(0);
+    }
+
     // Called from C++ JNI — versionCode=0 means "unknown, skip version check"
     public void downloadAndInstall(final String urlString, final String expectedSha256) {
         downloadAndInstall(urlString, expectedSha256, 0);
@@ -728,7 +748,15 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             Log.i("GarlicActivity", "InstallationReceiver: status=" + status + " message=" + message);
 
             if (status == PackageInstaller.STATUS_SUCCESS) {
-                Log.i("GarlicActivity", "UPDATE SUCCESSFUL. OS will restart the app.");
+                // Read actual installed version so C++ reportOtaStatus() can include it
+                // even though m_pendingOtaVersionCode resets to 0 in the new process.
+                try {
+                    s_lastOtaInstalledVersion = context.getPackageManager()
+                            .getPackageInfo(context.getPackageName(), 0).versionCode;
+                    Log.i("GarlicActivity", "UPDATE SUCCESSFUL. New versionCode=" + s_lastOtaInstalledVersion);
+                } catch (Exception e) {
+                    Log.w("GarlicActivity", "Could not read installed versionCode: " + e.getMessage());
+                }
                 try { notifyOtaInstallResult(true, "success", null); }
                 catch (UnsatisfiedLinkError e) { Log.w("GarlicActivity", "JNI notifyOtaInstallResult not linked"); }
             } else {

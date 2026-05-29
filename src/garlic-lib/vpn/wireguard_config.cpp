@@ -9,15 +9,19 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include "../version.h"
+#ifdef Q_OS_ANDROID
+#include <QAndroidJniObject>
+#include <jni.h>
+#endif
 
 // ─── Default management API base (port 3000 = NestJS backend) ────────────────
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
-static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("https://api-dev.la-trading-cms.co.uk");
+static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("https://api.la-trading-cms.co.uk");
 
 // ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
 // Returned dynamically by the registration handshake and persisted in config.
 // This is only used on first boot (before registration) and after a factory reset.
-static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("api-dev.la-trading-cms.co.uk:51820");
+static const QString DEFAULT_VPN_ENDPOINT = QStringLiteral("api.la-trading-cms.co.uk:51820");
 
 // ─── Default enrollment token ─────────────────────────────────────────────────
 // This matches the token stored in the backend for the initial fleet tenant.
@@ -481,6 +485,19 @@ void WireguardConfig::reportOtaStatus(bool success, const QString &status, const
 
     QString uuid = m_mainConfig ? m_mainConfig->getUuid() : getPlayerName();
 
+    // If m_pendingOtaVersionCode was lost (new process after install), read the real
+    // installed version from the Java static field written by InstallationReceiver.
+#if defined Q_OS_ANDROID
+    if (m_pendingOtaVersionCode == 0 && success) {
+        jint jv = QAndroidJniObject::getStaticField<jint>(
+            ANDROID_ACTIVITY_PATH, "s_lastOtaInstalledVersion");
+        if (jv > 0) {
+            m_pendingOtaVersionCode = static_cast<int>(jv);
+            qInfo() << "[Wireguard][OTA-STATUS] Recovered installed version from Java:" << m_pendingOtaVersionCode;
+        }
+    }
+#endif
+
     QJsonObject payload;
     payload["deviceId"] = uuid;
     payload["status"]   = backendStatus;
@@ -577,25 +594,27 @@ void WireguardConfig::setStatus(VpnStatus status)
         // Manage Reconnect Watchdog
         if (m_status == Connected) {
             m_reconnectTimer->stop();
-            
+
             save();
             emit requestSystemReport();
-            
+            reportVpnEvent("connected");
+
             // Start OTA Polling Timer (every 15 minutes)
             if (!m_otaTimer) {
                 m_otaTimer = new QTimer(this);
                 connect(m_otaTimer, &QTimer::timeout, this, &WireguardConfig::checkOtaUpdate);
             }
             m_otaTimer->start(15 * 60 * 1000); // 15 mins
-            
+
             // Trigger an immediate check on connection
             QTimer::singleShot(5000, this, &WireguardConfig::checkOtaUpdate);
-        } 
+        }
         else if (m_status == Disconnected || m_status == Error) {
             // Stop OTA polling — tunnel is gone, polls will fail and just generate noise
             if (m_otaTimer) {
                 m_otaTimer->stop();
             }
+            reportVpnEvent("disconnected");
             if (m_isEnabled) {
                 qInfo() << "[Wireguard] Disconnected/Error while enabled. Starting reconnect watchdog...";
                 m_reconnectTimer->start();
@@ -619,6 +638,28 @@ void WireguardConfig::handleReconnect()
     } else {
         m_reconnectTimer->stop();
     }
+}
+
+void WireguardConfig::reportVpnEvent(const QString &event)
+{
+    QString uuid = m_mainConfig ? m_mainConfig->getUuid() : "";
+    if (uuid.isEmpty() || m_managementBaseUrl.isEmpty()) return;
+
+    QUrl url(m_managementBaseUrl + "/api/v1/devices/vpn-event");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QJsonObject body;
+    body["deviceId"] = uuid;
+    body["event"]    = event;
+
+    QNetworkReply *reply = m_networkManager->post(
+        request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+
+    // Fire-and-forget — discard reply on finish
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+
+    qInfo() << "[Wireguard] VPN event reported:" << event;
 }
 
 QString WireguardConfig::getErrorMessage() const { return m_errorMessage; }

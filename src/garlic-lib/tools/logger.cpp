@@ -199,7 +199,7 @@ void Logger::triggerUpload()
     json["logs"] = logs;
 
     QString logBase = m_config->getUserConfigByKey("management_base_url");
-    if (logBase.isEmpty()) logBase = QStringLiteral("https://api-dev.la-trading-cms.co.uk");
+    if (logBase.isEmpty()) logBase = QStringLiteral("https://api.la-trading-cms.co.uk");
     QUrl url(logBase + "/api/v1/kiosk/logs");
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");

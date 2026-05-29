@@ -66,12 +66,15 @@ find . -name "Makefile*" -exec touch {} +
 echo 
 echo ========== build 
 echo 
-"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS 2>&1 | tee build_log.txt
-BUILD_EXIT=${PIPESTATUS[0]}
+"$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin/make" -j $DEV_JOBS > build_log.txt 2>&1
+BUILD_EXIT=$?
 if [ $BUILD_EXIT -ne 0 ]; then
     echo "ERROR: make failed with exit code $BUILD_EXIT. Check build_log.txt for details."
+    echo "--- Last errors ---"
+    grep -E "error:" build_log.txt | tail -20 || tail -30 build_log.txt
     exit $BUILD_EXIT
 fi
+echo "[+] Make build complete."
 
 echo 
 echo ========== run ranlib on static libraries 
@@ -119,8 +122,9 @@ if [ ! -f "./player-c2qml/$BUILD_TARGET/gradlew" ]; then
 fi
 
 cd ./player-c2qml/$BUILD_TARGET
-./gradlew -Dhttps.protocols=TLSv1.2 clean
-./gradlew -Dhttps.protocols=TLSv1.2 assemble${CONFIG_DEBUG_RELEASE^} --build-cache --parallel --daemon
+./gradlew --stop 2>/dev/null || true
+./gradlew -Dhttps.protocols=TLSv1.2 clean --no-daemon
+./gradlew -Dhttps.protocols=TLSv1.2 assemble${CONFIG_DEBUG_RELEASE^} --no-daemon
 cd ../..
 
 APK_PATH="./player-c2qml/$BUILD_TARGET/build/outputs/apk/$CONFIG_DEBUG_RELEASE"

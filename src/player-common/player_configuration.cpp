@@ -67,7 +67,7 @@ QString PlayerConfiguration::determineDefaultContentUrlName()
 
 QString PlayerConfiguration::determineDefaultContentUrl()
 {
-    return QString("http://178.128.46.45:3000/api/v1/device-playlist/%1/xml/").arg(MyMainConfiguration->getStaticHardwareId());
+    return QString("https://api.la-trading-cms.co.uk/api/v1/device-playlist/%1/xml/").arg(MyMainConfiguration->getStaticHardwareId());
 }
 
 

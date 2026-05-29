@@ -35,7 +35,7 @@ void Reporting::SystemReportManager::handleSend()
     // Duplicate to VPC Control Server
     QString deviceId = MyConfiguration->getUuid();
     QString reportBase = MyConfiguration->getUserConfigByKey("management_base_url");
-    if (reportBase.isEmpty()) reportBase = QStringLiteral("https://api-dev.la-trading-cms.co.uk");
+    if (reportBase.isEmpty()) reportBase = QStringLiteral("https://api.la-trading-cms.co.uk");
     QString vpcUrl = QString("%1/api/v1/reports/webdav/devices/%2/system").arg(reportBase).arg(deviceId);
     MyWebDav.data()->processPutData(vpcUrl, xmlData.toUtf8());
 }

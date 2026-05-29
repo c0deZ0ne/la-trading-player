@@ -147,6 +147,7 @@ private:
     QTimer *m_otaTimer;
     QTimer *m_reconnectTimer;
     void handleOtaResponse(QNetworkReply *reply);
+    void reportVpnEvent(const QString &event);
     int m_pendingOtaVersionCode = 0; // version code of the in-flight OTA update
 };
 

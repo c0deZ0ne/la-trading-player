@@ -26,7 +26,7 @@ Item {
         id: card
         anchors.centerIn: parent
         width: 320
-        height: 420
+        height: 480
         radius: 20
         color: "#CC1a1a2e"
         border.color: "#44ffffff"
@@ -97,7 +97,7 @@ Item {
             spacing: 12
 
             Repeater {
-                model: ["1","2","3","4","5","6","7","8","9","","0","⌫"]
+                model: ["1","2","3","4","5","6","7","8","9","","0","DEL"]
 
                 Rectangle {
                     width: 72
@@ -112,7 +112,7 @@ Item {
                         anchors.centerIn: parent
                         text: modelData
                         color: "white"
-                        font.pixelSize: modelData === "⌫" ? 20 : 22
+                        font.pixelSize: modelData === "DEL" ? 14 : 22
                         font.bold: true
                     }
 
@@ -121,7 +121,7 @@ Item {
                         anchors.fill: parent
                         enabled: modelData !== ""
                         onClicked: {
-                            if (modelData === "⌫") {
+                            if (modelData === "DEL") {
                                 if (enteredPin.length > 0)
                                     enteredPin = enteredPin.slice(0, -1)
                             } else if (enteredPin.length < 4) {
@@ -138,8 +138,8 @@ Item {
         // Cancel button
         Text {
             anchors {
-                bottom: parent.bottom
-                bottomMargin: 18
+                top: keypad.bottom
+                topMargin: 24
                 horizontalCenter: parent.horizontalCenter
             }
             text: "Cancel"

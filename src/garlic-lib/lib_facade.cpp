@@ -444,7 +444,7 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     // Use the same management base URL as the VPN config — single source of truth.
     // Do NOT hardcode the server IP here; always derive it from MyVpnConfiguration.
     QString baseUrl = MyVpnConfiguration.isNull()
-                          ? QStringLiteral("https://api-dev.la-trading-cms.co.uk")
+                          ? QStringLiteral("https://api.la-trading-cms.co.uk")
                           : MyVpnConfiguration->getManagementBaseUrl();
     QUrl url(baseUrl + "/api/v1/devices/vpn-register");
     QNetworkRequest request(url);

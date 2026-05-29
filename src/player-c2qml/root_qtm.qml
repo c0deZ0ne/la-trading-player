@@ -108,9 +108,9 @@ Item
             
             Text {
                 anchors.centerIn: parent
-                text: floatingSettingsMenu.expanded ? "✕" : "⋮"
+                text: floatingSettingsMenu.expanded ? "×" : "•••"
                 color: "white"
-                font.pixelSize: 24
+                font.pixelSize: floatingSettingsMenu.expanded ? 28 : 16
                 font.bold: true
             }
 
