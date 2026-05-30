@@ -18,6 +18,35 @@
 // Override at runtime via setManagementBaseUrl() if your deployment differs.
 static const QString DEFAULT_MANAGEMENT_URL = QStringLiteral("https://api.la-trading-cms.co.uk");
 
+// Normalizes any user-supplied base URL into a clean scheme://host[:port] with no trailing slash.
+// Handles: bare IP:port, bare domain, trailing slash, http vs https inference.
+static QString normalizeBaseUrl(const QString &raw)
+{
+    QString url = raw.trimmed();
+
+    while (url.endsWith('/'))
+        url.chop(1);
+
+    if (url.isEmpty())
+        return url;
+
+    if (url.startsWith("http://") || url.startsWith("https://"))
+        return url;
+
+    // Infer scheme: if the segment after the last colon is all digits it's a port → http://
+    int colonPos = url.lastIndexOf(':');
+    bool hasNumericPort = false;
+    if (colonPos != -1) {
+        QString portPart = url.mid(colonPos + 1);
+        hasNumericPort = !portPart.isEmpty();
+        for (const QChar &c : portPart) {
+            if (!c.isDigit()) { hasNumericPort = false; break; }
+        }
+    }
+
+    return (hasNumericPort ? QStringLiteral("http://") : QStringLiteral("https://")) + url;
+}
+
 // ─── Default WireGuard endpoint (UDP port 51820) ─────────────────────────────
 // Returned dynamically by the registration handshake and persisted in config.
 // This is only used on first boot (before registration) and after a factory reset.
@@ -64,7 +93,7 @@ void WireguardConfig::load()
     if (m_serverEndpoint.isEmpty()) m_serverEndpoint = DEFAULT_VPN_ENDPOINT;
 
     QString savedBase = m_mainConfig->getUserConfigByKey("management_base_url");
-    if (!savedBase.isEmpty()) m_managementBaseUrl = savedBase;
+    if (!savedBase.isEmpty()) m_managementBaseUrl = normalizeBaseUrl(savedBase);
 
     m_virtualIp  = m_mainConfig->getUserConfigByKey("vpn_virtual_ip");   // empty = not yet registered
     m_allowedIps = m_mainConfig->getUserConfigByKey("vpn_allowed_ips");
@@ -219,8 +248,9 @@ QString WireguardConfig::getPlayerName() const
 
 void WireguardConfig::setManagementBaseUrl(const QString &url)
 {
-    if (m_managementBaseUrl != url) {
-        m_managementBaseUrl = url;
+    QString normalized = normalizeBaseUrl(url);
+    if (m_managementBaseUrl != normalized) {
+        m_managementBaseUrl = normalized;
         emit managementBaseUrlChanged();
         save();
     }

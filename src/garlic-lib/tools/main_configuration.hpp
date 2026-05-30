@@ -105,7 +105,7 @@ class MainConfiguration  : public QObject, public IMainConfiguration
         void            setStartTime(const QString &value) override;
         QJsonObject     getSystemMetadata() const override;
         QString         getPaths(QString path_name) override;
-        void            setIndexUri(const QString &value) override;
+        Q_INVOKABLE void setIndexUri(const QString &value) override;
         void            setIndexPath(const QString &value) override;
 //        void            setNetworkInterface(const QString &value);
 //        QString         getNetworkInterface();

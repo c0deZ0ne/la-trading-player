@@ -440,6 +440,12 @@ void LibFacade::enrollDevice(QString token, QString playlistUrl)
     emit initStarted();
     qDebug() << "Enrolling device with token:" << token << "and URL:" << playlistUrl;
 
+    // Persist the URL immediately — don't wait for enrollment success.
+    // This ensures the user's intent survives even if the network request fails.
+    if (!playlistUrl.isEmpty()) {
+        MyConfiguration->setIndexUri(playlistUrl);
+    }
+
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
     // Use the same management base URL as the VPN config — single source of truth.
     // Do NOT hardcode the server IP here; always derive it from MyVpnConfiguration.

@@ -129,6 +129,26 @@ Rectangle {
         Component {
             id: mainView
             Item {
+                id: mainViewItem
+                // Keyboard height in logical pixels — drives the ScrollView bottom margin
+                // so content above the keyboard stays fully visible and scrollable.
+                property real keyboardHeight: Qt.inputMethod.visible
+                    ? Qt.inputMethod.keyboardRectangle.height
+                    : 0
+
+                Behavior on keyboardHeight {
+                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                }
+
+                // Scrolls the ScrollView so that a given Item is centred in the visible area.
+                function ensureVisible(field) {
+                    var fieldPos = field.mapToItem(mainLayout, 0, 0)
+                    var targetY  = fieldPos.y - (scrollView.height - field.height) / 2
+                    scrollView.contentItem.contentY =
+                        Math.max(0, Math.min(targetY,
+                            scrollView.contentItem.contentHeight - scrollView.height))
+                }
+
                 // Back Navigation
                 Button {
                     id: backButton
@@ -155,12 +175,11 @@ Rectangle {
                     id: scrollView
                     anchors.fill: parent
                     anchors.topMargin: backButton.height + 20
+                    anchors.bottomMargin: parent.keyboardHeight
                     contentWidth: availableWidth
-                    // This ensures scrolling works when the keyboard appears
                     contentHeight: mainLayout.implicitHeight + 40
                     clip: true
 
-                    // IMPORTANT: Override the default white background of ScrollView
                     background: Rectangle { color: "transparent" }
 
                     ColumnLayout {
@@ -194,6 +213,7 @@ Rectangle {
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
+                                onActiveFocusChanged: if (activeFocus) mainViewItem.ensureVisible(nameInput)
                                 
                                 background: Rectangle {
                                     color: "#252525"
@@ -234,6 +254,7 @@ Rectangle {
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
+                                onActiveFocusChanged: if (activeFocus) mainViewItem.ensureVisible(tokenInput)
                                 background: Rectangle {
                                     color: "#252525"
                                     radius: 8
@@ -255,12 +276,92 @@ Rectangle {
                             }
                         }
 
+                        // Server Base URL
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 20
+                            Layout.rightMargin: 20
+
+                            TextField {
+                                id: serverUrlInput
+                                text: LibFacade.vpnConfig ? LibFacade.vpnConfig.managementBaseUrl : ""
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: root.fieldHeight
+                                color: "white"
+                                font.pixelSize: root.baseFontSize
+                                verticalAlignment: TextInput.AlignVCenter
+                                leftPadding: 15
+                                topPadding: 20
+                                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText
+
+                                // _oldBase: the confirmed server URL when editing began
+                                // _oldPath: the playlist path portion (/api/v1/...) captured
+                                //           once on focus so every keystroke uses the same base
+                                property string _oldBase: ""
+                                property string _oldPath: ""
+
+                                onActiveFocusChanged: {
+                                    if (activeFocus) mainViewItem.ensureVisible(serverUrlInput)
+                                    if (activeFocus && LibFacade.vpnConfig) {
+                                        _oldBase = LibFacade.vpnConfig.managementBaseUrl
+                                        var playlist = urlInput.text
+                                        _oldPath = (playlist.indexOf(_oldBase) === 0)
+                                                   ? playlist.substring(_oldBase.length)
+                                                   : ""
+                                    }
+                                }
+
+                                // Live update every keystroke: typed text + frozen path snapshot.
+                                // Never re-reads urlInput.text so the check stays valid throughout.
+                                onTextChanged: {
+                                    if (_oldPath.length > 0) {
+                                        urlInput.text = text + _oldPath
+                                        root.playlistUrl = urlInput.text
+                                    }
+                                }
+
+                                // On confirm: pass raw text to C++ for normalization, then
+                                // re-anchor the playlist to the normalized base and save both.
+                                onEditingFinished: {
+                                    if (LibFacade.vpnConfig && text.length > 0) {
+                                        LibFacade.vpnConfig.managementBaseUrl = text
+                                        var normalizedBase = LibFacade.vpnConfig.managementBaseUrl
+                                        if (_oldPath.length > 0) {
+                                            var finalPlaylist = normalizedBase + _oldPath
+                                            urlInput.text = finalPlaylist
+                                            root.playlistUrl = finalPlaylist
+                                            if (MyConfig) MyConfig.setIndexUri(finalPlaylist)
+                                        }
+                                        _oldBase = normalizedBase
+                                        _oldPath = ""
+                                    }
+                                }
+
+                                background: Rectangle {
+                                    color: "#252525"
+                                    radius: 8
+                                    border.color: serverUrlInput.activeFocus ? "#ffff00" : "#333333"
+                                    border.width: serverUrlInput.activeFocus ? 2 : 1
+                                    Text {
+                                        text: "SERVER URL"
+                                        color: "#ffff00"
+                                        font.pixelSize: root.smallFontSize * 0.8
+                                        font.weight: Font.Bold
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.leftMargin: 15
+                                        anchors.topMargin: 6
+                                    }
+                                }
+                            }
+                        }
+
                         // URL Input
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: 20
                             Layout.rightMargin: 20
-                            
+
                             TextField {
                                 id: urlInput
                                 text: root.playlistUrl
@@ -276,7 +377,7 @@ Rectangle {
                                     radius: 8
                                     border.color: urlInput.activeFocus ? "#ffff00" : "#333333"
                                     border.width: urlInput.activeFocus ? 2 : 1
-                                    
+
                                     Text {
                                         text: "PLAYLIST URL"
                                         color: "#ffff00"
@@ -288,7 +389,12 @@ Rectangle {
                                         anchors.topMargin: 6
                                     }
                                 }
+                                onActiveFocusChanged: if (activeFocus) mainViewItem.ensureVisible(urlInput)
                                 onTextChanged: root.playlistUrl = text
+                                onEditingFinished: {
+                                    if (MyConfig && text.length > 0)
+                                        MyConfig.setIndexUri(text)
+                                }
                             }
                         }
 
