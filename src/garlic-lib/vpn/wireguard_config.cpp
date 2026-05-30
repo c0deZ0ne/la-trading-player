@@ -365,6 +365,7 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     QString clientIp   = dataObj.value("clientIp").toString();
     QString serverKey  = dataObj.value("serverPublicKey").toString();
     QString endpoint   = dataObj.value("serverEndpoint").toString();
+    QString allowedIps = dataObj.value("allowedIps").toString();
 
     if (clientIp.isEmpty()) {
         setVpnError("Registration failed: server returned no virtual IP.");
@@ -372,10 +373,11 @@ void WireguardConfig::handleRegistrationResponse(QNetworkReply *reply)
     }
 
     qInfo() << "[Wireguard] Registration succeeded. VirtualIP:" << clientIp
-            << "ServerKey:" << serverKey;
+            << "ServerKey:" << serverKey << "AllowedIPs:" << allowedIps;
 
     if (!serverKey.isEmpty()) m_serverPublicKey = serverKey;
     if (!endpoint.isEmpty())  m_serverEndpoint  = endpoint;
+    if (!allowedIps.isEmpty()) m_allowedIps     = allowedIps;
     m_virtualIp    = clientIp;   // e.g. "100.64.0.2" — /32 appended in startVpn()
     m_tenantId     = dataObj.value("tenantId").toString();
     if (dataObj.contains("managementPin") && m_mainConfig) {

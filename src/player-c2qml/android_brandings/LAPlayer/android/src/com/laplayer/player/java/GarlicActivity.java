@@ -117,6 +117,28 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
             }
         });
 
+        // Deferred OTA success report: if the previous process was killed by the installer
+        // before JNI was linked, the success was saved to SharedPreferences. Report it now
+        // after a delay sufficient for Qt/JNI to fully initialize.
+        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                android.content.SharedPreferences prefs =
+                        getSharedPreferences("ota_prefs", Context.MODE_PRIVATE);
+                if (prefs.getBoolean("pending_success", false)) {
+                    int version = prefs.getInt("pending_version", 0);
+                    s_lastOtaInstalledVersion = version;
+                    try {
+                        notifyOtaInstallResult(true, "success", null);
+                        prefs.edit().remove("pending_success").remove("pending_version").apply();
+                        Log.i("GarlicActivity", "Deferred OTA success reported. version=" + version);
+                    } catch (UnsatisfiedLinkError e) {
+                        Log.e("GarlicActivity", "Deferred OTA report failed — JNI still not ready: " + e.getMessage());
+                    }
+                }
+            }
+        }, 10000); // 10 s — enough for Qt and C++ JNI to fully initialize
+
         // Now process intent (guarded by crash counter skip in handleIntent)
         handleIntent(getIntent());
 
@@ -757,8 +779,18 @@ public class GarlicActivity extends org.qtproject.qt5.android.bindings.QtActivit
                 } catch (Exception e) {
                     Log.w("GarlicActivity", "Could not read installed versionCode: " + e.getMessage());
                 }
+                // Persist success to SharedPreferences as a bridge for the new process.
+                // The JNI call below will fail with UnsatisfiedLinkError if Qt hasn't
+                // loaded yet in this process — the onCreate() delayed check is the fallback.
+                context.getSharedPreferences("ota_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .putBoolean("pending_success", true)
+                        .putInt("pending_version", s_lastOtaInstalledVersion)
+                        .apply();
                 try { notifyOtaInstallResult(true, "success", null); }
-                catch (UnsatisfiedLinkError e) { Log.w("GarlicActivity", "JNI notifyOtaInstallResult not linked"); }
+                catch (UnsatisfiedLinkError e) {
+                    Log.w("GarlicActivity", "JNI not linked — OTA success saved to SharedPreferences for deferred report");
+                }
             } else {
                 Log.e("GarlicActivity", "UPDATE FAILED: " + message);
                 try { notifyOtaInstallResult(false, "install_failed", message); }
