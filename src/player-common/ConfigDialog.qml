@@ -196,34 +196,31 @@ Rectangle {
                         }
 
                         
-                        // Device ID (reused as Device Name)
+                        // Device Name — read-only display, populated from config
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: 20
                             Layout.rightMargin: 20
-                            
+
                             TextField {
                                 id: nameInput
                                 text: root.playerName
+                                readOnly: true
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: root.fieldHeight
-                                placeholderText: "Enter Device Name"
                                 font.pixelSize: root.baseFontSize
-                                color: "white"
+                                color: "#888888"
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
-                                onActiveFocusChanged: if (activeFocus) mainViewItem.ensureVisible(nameInput)
-                                
                                 background: Rectangle {
-                                    color: "#252525"
+                                    color: "#1a1a1a"
                                     radius: 8
-                                    border.color: nameInput.activeFocus ? "#ffff00" : "#333333"
-                                    border.width: nameInput.activeFocus ? 2 : 1
-                                    
+                                    border.color: "#2a2a2a"
+                                    border.width: 1
                                     Text {
                                         text: "DEVICE NAME"
-                                        color: "#ffff00"
+                                        color: "#666666"
                                         font.pixelSize: root.smallFontSize * 0.8
                                         font.weight: Font.Bold
                                         anchors.left: parent.left
@@ -232,17 +229,15 @@ Rectangle {
                                         anchors.topMargin: 6
                                     }
                                 }
-                                onTextChanged: root.playerName = text
                             }
                         }
 
-
-                        // SaaS Enrollment Token (Manual Provisioning)
+                        // SaaS Enrollment Token — only editable input
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: 20
                             Layout.rightMargin: 20
-                            
+
                             TextField {
                                 id: tokenInput
                                 text: LibFacade.vpnConfig ? LibFacade.vpnConfig.enrollmentToken : ""
@@ -260,7 +255,6 @@ Rectangle {
                                     radius: 8
                                     border.color: tokenInput.activeFocus ? "#ffff00" : "#333333"
                                     border.width: tokenInput.activeFocus ? 2 : 1
-                                    
                                     Text {
                                         text: "PAIRING CODE"
                                         color: "#ffff00"
@@ -276,87 +270,7 @@ Rectangle {
                             }
                         }
 
-                        // Server Base URL
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.leftMargin: 20
-                            Layout.rightMargin: 20
-
-                            TextField {
-                                id: serverUrlInput
-                                text: LibFacade.vpnConfig ? LibFacade.vpnConfig.managementBaseUrl : ""
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.fieldHeight
-                                color: "white"
-                                font.pixelSize: root.baseFontSize
-                                verticalAlignment: TextInput.AlignVCenter
-                                leftPadding: 15
-                                topPadding: 20
-                                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoPredictiveText
-
-                                // _oldBase: the confirmed server URL when editing began
-                                // _oldPath: the playlist path portion (/api/v1/...) captured
-                                //           once on focus so every keystroke uses the same base
-                                property string _oldBase: ""
-                                property string _oldPath: ""
-
-                                onActiveFocusChanged: {
-                                    if (activeFocus) mainViewItem.ensureVisible(serverUrlInput)
-                                    if (activeFocus && LibFacade.vpnConfig) {
-                                        _oldBase = LibFacade.vpnConfig.managementBaseUrl
-                                        var playlist = urlInput.text
-                                        _oldPath = (playlist.indexOf(_oldBase) === 0)
-                                                   ? playlist.substring(_oldBase.length)
-                                                   : ""
-                                    }
-                                }
-
-                                // Live update every keystroke: typed text + frozen path snapshot.
-                                // Never re-reads urlInput.text so the check stays valid throughout.
-                                onTextChanged: {
-                                    if (_oldPath.length > 0) {
-                                        urlInput.text = text + _oldPath
-                                        root.playlistUrl = urlInput.text
-                                    }
-                                }
-
-                                // On confirm: pass raw text to C++ for normalization, then
-                                // re-anchor the playlist to the normalized base and save both.
-                                onEditingFinished: {
-                                    if (LibFacade.vpnConfig && text.length > 0) {
-                                        LibFacade.vpnConfig.managementBaseUrl = text
-                                        var normalizedBase = LibFacade.vpnConfig.managementBaseUrl
-                                        if (_oldPath.length > 0) {
-                                            var finalPlaylist = normalizedBase + _oldPath
-                                            urlInput.text = finalPlaylist
-                                            root.playlistUrl = finalPlaylist
-                                            if (MyConfig) MyConfig.setIndexUri(finalPlaylist)
-                                        }
-                                        _oldBase = normalizedBase
-                                        _oldPath = ""
-                                    }
-                                }
-
-                                background: Rectangle {
-                                    color: "#252525"
-                                    radius: 8
-                                    border.color: serverUrlInput.activeFocus ? "#ffff00" : "#333333"
-                                    border.width: serverUrlInput.activeFocus ? 2 : 1
-                                    Text {
-                                        text: "SERVER URL"
-                                        color: "#ffff00"
-                                        font.pixelSize: root.smallFontSize * 0.8
-                                        font.weight: Font.Bold
-                                        anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        anchors.leftMargin: 15
-                                        anchors.topMargin: 6
-                                    }
-                                }
-                            }
-                        }
-
-                        // URL Input
+                        // Playlist URL — read-only display, updated by enrollment response
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.leftMargin: 20
@@ -365,22 +279,22 @@ Rectangle {
                             TextField {
                                 id: urlInput
                                 text: root.playlistUrl
+                                readOnly: true
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: root.fieldHeight
-                                color: "white"
                                 font.pixelSize: root.baseFontSize
+                                color: "#888888"
                                 verticalAlignment: TextInput.AlignVCenter
                                 leftPadding: 15
                                 topPadding: 20
                                 background: Rectangle {
-                                    color: "#252525"
+                                    color: "#1a1a1a"
                                     radius: 8
-                                    border.color: urlInput.activeFocus ? "#ffff00" : "#333333"
-                                    border.width: urlInput.activeFocus ? 2 : 1
-
+                                    border.color: "#2a2a2a"
+                                    border.width: 1
                                     Text {
                                         text: "PLAYLIST URL"
-                                        color: "#ffff00"
+                                        color: "#666666"
                                         font.pixelSize: root.smallFontSize * 0.8
                                         font.weight: Font.Bold
                                         anchors.left: parent.left
@@ -388,12 +302,6 @@ Rectangle {
                                         anchors.leftMargin: 15
                                         anchors.topMargin: 6
                                     }
-                                }
-                                onActiveFocusChanged: if (activeFocus) mainViewItem.ensureVisible(urlInput)
-                                onTextChanged: root.playlistUrl = text
-                                onEditingFinished: {
-                                    if (MyConfig && text.length > 0)
-                                        MyConfig.setIndexUri(text)
                                 }
                             }
                         }
