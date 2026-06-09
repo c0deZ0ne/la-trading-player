@@ -29,13 +29,14 @@ bool DB::InventoryTable::replace(DB::InventoryDataset dataset)
 {
     QSqlQuery query(db);
     QString   sql;
-    if (countByCacheName(dataset.cache_name) > 0)
-        sql = buildInsertSql(dataset);
-    else if (countByCacheName(dataset.cache_name) == -1)
+    int count = countByCacheName(dataset.cache_name);
+    if (count == -1)
     {
-        qCritical(Database) << "replase failed" << sql << query.lastError().text();
+        qCritical(Database) << "replace failed" << sql << query.lastError().text();
         return false;
     }
+    else if (count == 0)
+        sql = buildInsertSql(dataset);
     else
         sql = buildUpdateSql(dataset);
 
@@ -188,14 +189,17 @@ bool DB::InventoryTable::openDbFile()
         return createTable();
     }
     QSqlQuery query(db);
-    if (!query.exec("SELECT EXISTS (SELECT 1 FROM pragma_index_list('inventory') AS il JOIN pragma_index_info(il.name) AS ii ON il.unique = 1 AND ii.name = 'cache_name');"))
+    if (query.exec("SELECT EXISTS (SELECT 1 FROM pragma_index_list('inventory') AS il JOIN pragma_index_info(il.name) AS ii ON il.\"unique\" = 1 AND ii.name = 'cache_name');"))
     {
-        qCritical(Database) << "Failed to execute query:" << query.lastError().text();
         if (query.next() && !query.value(0).toBool())
         {
             dropTable("inventory");
             return createTable();
         }
+    }
+    else
+    {
+        qCritical(Database) << "Failed to execute query:" << query.lastError().text();
     }
     return true;
 }
